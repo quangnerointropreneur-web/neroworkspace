@@ -257,48 +257,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Hint */}
-        <div
-          style={{
-            marginTop: 28,
-            padding: 16,
-            background: "rgba(255,255,255,0.03)",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          <p style={{ fontSize: 12, color: "#4a5568", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Tài khoản demo
-          </p>
-          {[
-            { role: "Admin", user: "admin", pass: "admin123" },
-            { role: "NV", user: "nguyen.van.a", pass: "pass123" },
-            { role: "NV", user: "tran.thi.b", pass: "pass123" },
-          ].map((acc) => (
-            <button
-              key={acc.user}
-              type="button"
-              onClick={() => { setUsername(acc.user); setPassword(acc.pass); }}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "5px 0",
-                color: "#6b7280",
-                fontSize: 12,
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#3b82f6")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#6b7280")}
-            >
-              <span style={{ color: "#4a5568", marginRight: 6 }}>[{acc.role}]</span>
-              {acc.user} / {acc.pass}
-            </button>
-          ))}
-        </div>
+        {/* Removed demo hints to avoid exposing credentials */}
       </div>
     </div>
   );
