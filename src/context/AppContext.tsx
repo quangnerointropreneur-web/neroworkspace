@@ -1,18 +1,10 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  ReactNode,
-} from "react";
-import {
-  User, Brand, Task, SubTask, AppState, TaskStatus, KPI,
-  CheckInRecord, KPILogEntry, Notification, Theme,
-} from "@/lib/types";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { User, Brand, Task, SubTask, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme } from "@/lib/types";
 import { INITIAL_APP_STATE } from "@/lib/mockData";
+import { db } from "@/lib/firebase";
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
 
 // =============================================================================
 // AUTH CONTEXT
@@ -37,34 +29,26 @@ interface DataContextType {
   state: AppState;
   theme: Theme;
   toggleTheme: () => void;
-  // Tasks
   addTask: (task: Omit<Task, "id" | "createdAt" | "subTasks">) => Task;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   updateTaskStatus: (id: string, status: TaskStatus) => void;
-  // SubTasks
   addSubTask: (taskId: string, subTask: Omit<SubTask, "id" | "taskId">) => void;
   updateSubTask: (taskId: string, subTaskId: string, updates: Partial<SubTask>) => void;
   deleteSubTask: (taskId: string, subTaskId: string) => void;
-  // Users
   addUser: (user: Omit<User, "id" | "createdAt">) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
-  // Brands
   addBrand: (brand: Omit<Brand, "id" | "createdAt">) => void;
   updateBrand: (id: string, updates: Partial<Brand>) => void;
   deleteBrand: (id: string) => void;
-  // KPIs
   updateKPI: (brandId: string, kpiId: string, updates: Partial<KPI>) => void;
   addKPI: (brandId: string, kpi: Omit<KPI, "id">) => void;
   deleteKPI: (brandId: string, kpiId: string) => void;
-  // KPI Logs
   addKPILog: (log: Omit<KPILogEntry, "id">) => void;
-  // Check-in
   addCheckIn: (record: Omit<CheckInRecord, "id">) => void;
   updateCheckIn: (id: string, updates: Partial<CheckInRecord>) => void;
   getTodayCheckIn: (userId: string) => CheckInRecord | undefined;
-  // Notifications
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: (userId: string) => void;
   addNotification: (n: Omit<Notification, "id" | "createdAt">) => void;
@@ -80,100 +64,98 @@ export const useData = () => {
 // =============================================================================
 // HELPERS
 // =============================================================================
-const genId = (prefix: string) =>
-  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const genId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-const LS_KEY_STATE = "nero_ops_state_v2";
 const LS_KEY_USER = "nero_ops_current_user";
 const LS_KEY_THEME = "nero_ops_theme";
-
-function loadState(): AppState {
-  if (typeof window === "undefined") return INITIAL_APP_STATE;
-  try {
-    const raw = localStorage.getItem(LS_KEY_STATE);
-    if (raw) {
-      const parsed = JSON.parse(raw) as AppState;
-      // Ensure new fields exist
-      return {
-        ...INITIAL_APP_STATE,
-        ...parsed,
-        checkIns: parsed.checkIns ?? [],
-        kpiLogs: parsed.kpiLogs ?? [],
-        notifications: parsed.notifications ?? [],
-        theme: parsed.theme ?? "dark",
-        // Migrate tasks: ensure picIds exists
-        tasks: (parsed.tasks ?? []).map((t: Task) => ({
-          ...t,
-          picIds: t.picIds ?? (t.picId ? [t.picId] : []),
-          subTasks: (t.subTasks ?? []).map((st: SubTask) => ({
-            ...st,
-            picIds: st.picIds ?? [],
-          })),
-        })),
-      };
-    }
-  } catch {}
-  return INITIAL_APP_STATE;
-}
-
-function saveState(s: AppState) {
-  try { localStorage.setItem(LS_KEY_STATE, JSON.stringify(s)); } catch {}
-}
-
-function loadCurrentUser(users: User[]): User | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(LS_KEY_USER);
-    if (!raw) return null;
-    const saved = JSON.parse(raw) as User;
-    return users.find((u) => u.id === saved.id) ?? null;
-  } catch { return null; }
-}
 
 // =============================================================================
 // PROVIDER
 // =============================================================================
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(INITIAL_APP_STATE);
+  const [state, setState] = useState<AppState>({
+    tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], theme: "dark"
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [hydrated, setHydrated] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
+  const [firebaseInit, setFirebaseInit] = useState(false);
 
+  // Initialize Data from Firebase
   useEffect(() => {
-    const loaded = loadState();
-    setState(loaded);
-    setCurrentUser(loadCurrentUser(loaded.users));
-    const savedTheme = (localStorage.getItem(LS_KEY_THEME) as Theme) ?? loaded.theme ?? "dark";
-    setTheme(savedTheme);
-    document.documentElement.setAttribute("data-theme", savedTheme);
-    setHydrated(true);
+    // 1. Check if database is empty and seed if necessary
+    const seedIfEmpty = async () => {
+      const snap = await getDocs(collection(db, "users"));
+      if (snap.empty) {
+        console.log("Database empty. Seeding mock data...");
+        const batch = writeBatch(db);
+        INITIAL_APP_STATE.users.forEach(u => batch.set(doc(db, "users", u.id), u));
+        INITIAL_APP_STATE.tasks.forEach(t => batch.set(doc(db, "tasks", t.id), t));
+        INITIAL_APP_STATE.brands.forEach(b => batch.set(doc(db, "brands", b.id), b));
+        INITIAL_APP_STATE.checkIns?.forEach(c => batch.set(doc(db, "checkIns", c.id), c));
+        INITIAL_APP_STATE.kpiLogs?.forEach(l => batch.set(doc(db, "kpiLogs", l.id), l));
+        INITIAL_APP_STATE.notifications?.forEach(n => batch.set(doc(db, "notifications", n.id), n));
+        await batch.commit();
+        console.log("Seeding complete.");
+      }
+      setFirebaseInit(true);
+    };
+    seedIfEmpty();
+
+    // 2. Setup Snapshots
+    const unsubs = [
+      onSnapshot(collection(db, "tasks"), (snap) => {
+        setState(s => ({ ...s, tasks: snap.docs.map(d => d.data() as Task) }));
+      }),
+      onSnapshot(collection(db, "users"), (snap) => {
+        const users = snap.docs.map(d => d.data() as User);
+        setState(s => ({ ...s, users }));
+        // Update currentUser if modified
+        setCurrentUser(prev => prev ? (users.find(u => u.id === prev.id) ?? prev) : null);
+      }),
+      onSnapshot(collection(db, "brands"), (snap) => {
+        setState(s => ({ ...s, brands: snap.docs.map(d => d.data() as Brand) }));
+      }),
+      onSnapshot(collection(db, "checkIns"), (snap) => {
+        setState(s => ({ ...s, checkIns: snap.docs.map(d => d.data() as CheckInRecord) }));
+      }),
+      onSnapshot(collection(db, "kpiLogs"), (snap) => {
+        setState(s => ({ ...s, kpiLogs: snap.docs.map(d => d.data() as KPILogEntry) }));
+      }),
+      onSnapshot(collection(db, "notifications"), (snap) => {
+        // Sort notifications by createdAt descending locally
+        const notifs = snap.docs.map(d => d.data() as Notification)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setState(s => ({ ...s, notifications: notifs }));
+      }),
+    ];
+
+    // Theme & current user logic
+    if (typeof window !== "undefined") {
+      const savedUser = localStorage.getItem(LS_KEY_USER);
+      if (savedUser) { try { setCurrentUser(JSON.parse(savedUser)); } catch {} }
+      const savedTheme = (localStorage.getItem(LS_KEY_THEME) as Theme) ?? "dark";
+      setTheme(savedTheme);
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    }
+
+    return () => unsubs.forEach(u => u());
   }, []);
 
-  useEffect(() => {
-    if (hydrated) saveState(state);
-  }, [state, hydrated]);
-
-  // Apply theme to DOM
+  // Sync theme
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem(LS_KEY_THEME, theme);
   }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((t) => (t === "dark" ? "light" : "dark"));
-  }, []);
+  const toggleTheme = useCallback(() => setTheme(t => (t === "dark" ? "light" : "dark")), []);
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const login = useCallback((username: string, password: string): boolean => {
-    const user = state.users.find(
-      (u) => u.username === username && u.password === password
-    );
+    const user = state.users.find(u => u.username === username && u.password === password);
     if (!user) return false;
     setCurrentUser(user);
     localStorage.setItem(LS_KEY_USER, JSON.stringify(user));
     return true;
   }, [state.users]);
-
   const logout = useCallback(() => {
     setCurrentUser(null);
     localStorage.removeItem(LS_KEY_USER);
@@ -182,254 +164,175 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ── Tasks ─────────────────────────────────────────────────────────────────
   const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "subTasks">): Task => {
     const newTask: Task = {
-      ...task,
-      id: genId("task"),
-      subTasks: [],
-      createdAt: new Date().toISOString(),
+      ...task, id: genId("task"), subTasks: [], createdAt: new Date().toISOString(),
       picIds: task.picIds ?? (task.picId ? [task.picId] : []),
     };
-    setState((s) => {
-      let newNotifs = s.notifications ?? [];
-      // Notify PICs
-      const notifs: Notification[] = newTask.picIds.map((uid) => ({
-        id: genId("notif"),
-        userId: uid,
-        title: "Công việc mới",
+    setDoc(doc(db, "tasks", newTask.id), newTask);
+
+    newTask.picIds.forEach(uid => {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: uid, title: "Công việc mới",
         body: `Bạn vừa được giao một task mới: "${newTask.title}"`,
-        type: "task",
-        read: false,
-        taskId: newTask.id,
-        createdAt: new Date().toISOString(),
-      }));
-      return { ...s, tasks: [...s.tasks, newTask], notifications: [...notifs, ...newNotifs] };
+        type: "task", read: false, taskId: newTask.id, createdAt: new Date().toISOString()
+      });
     });
     return newTask;
   }, []);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    }));
-  }, []);
-
-  const deleteTask = useCallback((id: string) => {
-    setState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
-  }, []);
-
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => updateDoc(doc(db, "tasks", id), updates), []);
+  const deleteTask = useCallback((id: string) => deleteDoc(doc(db, "tasks", id)), []);
+  
   const updateTaskStatus = useCallback((id: string, status: TaskStatus) => {
-    setState((s) => {
-      const task = s.tasks.find((t) => t.id === id);
-      if (!task || task.status === status) return s;
+    const task = state.tasks.find(t => t.id === id);
+    if (!task || task.status === status) return;
+    updateDoc(doc(db, "tasks", id), { status });
 
-      const newTasks = s.tasks.map((t) => (t.id === id ? { ...t, status } : t));
-      let newNotifs = s.notifications ?? [];
-
-      if (status === "review") {
-        const admins = s.users.filter((u) => u.role === "admin");
-        const notifs: Notification[] = admins.map((a) => ({
-          id: genId("notif"), userId: a.id, title: "Task cần duyệt",
+    if (status === "review") {
+      state.users.filter(u => u.role === "admin").forEach(a => {
+        const nId = genId("notif");
+        setDoc(doc(db, "notifications", nId), {
+          id: nId, userId: a.id, title: "Task cần duyệt",
           body: `Công việc "${task.title}" đã được chuyển sang chờ duyệt.`,
           type: "task", read: false, taskId: task.id, createdAt: new Date().toISOString(),
-        }));
-        newNotifs = [...notifs, ...newNotifs];
-      } else if (status === "done" || status === "todo") {
-        const notifs: Notification[] = task.picIds.map((uid) => ({
-          id: genId("notif"), userId: uid, title: status === "done" ? "Task đã hoàn thành" : "Task bị yêu cầu làm lại",
+        });
+      });
+    } else if (status === "done" || status === "todo") {
+      task.picIds.forEach(uid => {
+        const nId = genId("notif");
+        setDoc(doc(db, "notifications", nId), {
+          id: nId, userId: uid, title: status === "done" ? "Task đã hoàn thành" : "Task bị yêu cầu làm lại",
           body: `Công việc "${task.title}" vừa được Admin chuyển thành ${status === "done" ? "Hoàn thành" : "Chờ xử lý"}.`,
           type: "task", read: false, taskId: task.id, createdAt: new Date().toISOString(),
-        }));
-        newNotifs = [...notifs, ...newNotifs];
-      }
-      return { ...s, tasks: newTasks, notifications: newNotifs };
-    });
-  }, []);
+        });
+      });
+    }
+  }, [state.tasks, state.users]);
 
   // ── SubTasks ──────────────────────────────────────────────────────────────
   const addSubTask = useCallback((taskId: string, subTask: Omit<SubTask, "id" | "taskId">) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
     const newSub: SubTask = { ...subTask, id: genId("st"), taskId, picIds: subTask.picIds ?? [] };
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) =>
-        t.id === taskId ? { ...t, subTasks: [...t.subTasks, newSub] } : t
-      ),
-    }));
-  }, []);
+    updateDoc(doc(db, "tasks", taskId), { subTasks: [...task.subTasks, newSub] });
+  }, [state.tasks]);
 
   const updateSubTask = useCallback((taskId: string, subTaskId: string, updates: Partial<SubTask>) => {
-    setState((s) => {
-      const task = s.tasks.find((t) => t.id === taskId);
-      const newTasks = s.tasks.map((t) =>
-        t.id === taskId ? { ...t, subTasks: t.subTasks.map((st) => st.id === subTaskId ? { ...st, ...updates } : st) } : t
-      );
-      let newNotifs = s.notifications ?? [];
-      
-      // If marked as done
-      if (updates.status === "done" && task) {
-        const st = task.subTasks.find((st) => st.id === subTaskId);
-        if (st && st.status !== "done") {
-          const notifs: Notification[] = task.picIds.map((uid) => ({
-            id: genId("notif"), userId: uid, title: "Sub-task hoàn thành",
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const newSubs = task.subTasks.map(st => st.id === subTaskId ? { ...st, ...updates } : st);
+    updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
+
+    if (updates.status === "done") {
+      const st = task.subTasks.find(st => st.id === subTaskId);
+      if (st && st.status !== "done") {
+        task.picIds.forEach(uid => {
+          const nId = genId("notif");
+          setDoc(doc(db, "notifications", nId), {
+            id: nId, userId: uid, title: "Sub-task hoàn thành",
             body: `Một công việc phụ ("${st.content}") trong task "${task.title}" đã hoàn tất!`,
             type: "subtask", read: false, taskId: task.id, createdAt: new Date().toISOString(),
-          }));
-          newNotifs = [...notifs, ...newNotifs];
-        }
+          });
+        });
       }
-      return { ...s, tasks: newTasks, notifications: newNotifs };
-    });
-  }, []);
+    }
+  }, [state.tasks]);
 
   const deleteSubTask = useCallback((taskId: string, subTaskId: string) => {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) =>
-        t.id === taskId ? { ...t, subTasks: t.subTasks.filter((st) => st.id !== subTaskId) } : t
-      ),
-    }));
-  }, []);
+    const task = state.tasks.find(t => t.id === taskId);
+    if (task) updateDoc(doc(db, "tasks", taskId), { subTasks: task.subTasks.filter(st => st.id !== subTaskId) });
+  }, [state.tasks]);
 
-  // ── Users ─────────────────────────────────────────────────────────────────
+  // ── Users & Brands ────────────────────────────────────────────────────────
   const addUser = useCallback((user: Omit<User, "id" | "createdAt">) => {
-    setState((s) => ({ ...s, users: [...s.users, { ...user, id: genId("user"), createdAt: new Date().toISOString() }] }));
+    const id = genId("user");
+    setDoc(doc(db, "users", id), { ...user, id, createdAt: new Date().toISOString() });
   }, []);
+  const updateUser = useCallback((id: string, updates: Partial<User>) => updateDoc(doc(db, "users", id), updates), []);
+  const deleteUser = useCallback((id: string) => deleteDoc(doc(db, "users", id)), []);
 
-  const updateUser = useCallback((id: string, updates: Partial<User>) => {
-    setState((s) => ({ ...s, users: s.users.map((u) => (u.id === id ? { ...u, ...updates } : u)) }));
-    setCurrentUser((prev) => (prev?.id === id ? { ...prev, ...updates } : prev));
-  }, []);
-
-  const deleteUser = useCallback((id: string) => {
-    setState((s) => ({ ...s, users: s.users.filter((u) => u.id !== id) }));
-  }, []);
-
-  // ── Brands ────────────────────────────────────────────────────────────────
   const addBrand = useCallback((brand: Omit<Brand, "id" | "createdAt">) => {
-    setState((s) => ({ ...s, brands: [...s.brands, { ...brand, id: genId("brand"), createdAt: new Date().toISOString() }] }));
+    const id = genId("brand");
+    setDoc(doc(db, "brands", id), { ...brand, id, createdAt: new Date().toISOString() });
   }, []);
-
-  const updateBrand = useCallback((id: string, updates: Partial<Brand>) => {
-    setState((s) => ({ ...s, brands: s.brands.map((b) => (b.id === id ? { ...b, ...updates } : b)) }));
-  }, []);
-
-  const deleteBrand = useCallback((id: string) => {
-    setState((s) => ({ ...s, brands: s.brands.filter((b) => b.id !== id) }));
-  }, []);
-
-  // ── KPIs ──────────────────────────────────────────────────────────────────
-  const updateKPI = useCallback((brandId: string, kpiId: string, updates: Partial<KPI>) => {
-    setState((s) => ({
-      ...s,
-      brands: s.brands.map((b) =>
-        b.id === brandId ? { ...b, kpis: b.kpis.map((k) => k.id === kpiId ? { ...k, ...updates } : k) } : b
-      ),
-    }));
-  }, []);
+  const updateBrand = useCallback((id: string, updates: Partial<Brand>) => updateDoc(doc(db, "brands", id), updates), []);
+  const deleteBrand = useCallback((id: string) => deleteDoc(doc(db, "brands", id)), []);
 
   const addKPI = useCallback((brandId: string, kpi: Omit<KPI, "id">) => {
-    setState((s) => ({
-      ...s,
-      brands: s.brands.map((b) =>
-        b.id === brandId ? { ...b, kpis: [...b.kpis, { ...kpi, id: genId("kpi") }] } : b
-      ),
-    }));
-  }, []);
-
+    const brand = state.brands.find(b => b.id === brandId);
+    if (brand) updateDoc(doc(db, "brands", brandId), { kpis: [...brand.kpis, { ...kpi, id: genId("kpi") }] });
+  }, [state.brands]);
+  const updateKPI = useCallback((brandId: string, kpiId: string, updates: Partial<KPI>) => {
+    const brand = state.brands.find(b => b.id === brandId);
+    if (brand) updateDoc(doc(db, "brands", brandId), { kpis: brand.kpis.map(k => k.id === kpiId ? { ...k, ...updates } : k) });
+  }, [state.brands]);
   const deleteKPI = useCallback((brandId: string, kpiId: string) => {
-    setState((s) => ({
-      ...s,
-      brands: s.brands.map((b) =>
-        b.id === brandId ? { ...b, kpis: b.kpis.filter((k) => k.id !== kpiId) } : b
-      ),
-    }));
-  }, []);
+    const brand = state.brands.find(b => b.id === brandId);
+    if (brand) updateDoc(doc(db, "brands", brandId), { kpis: brand.kpis.filter(k => k.id !== kpiId) });
+  }, [state.brands]);
 
-  // ── KPI Logs ──────────────────────────────────────────────────────────────
+  // ── KPI Logs & CheckIns ───────────────────────────────────────────────────
   const addKPILog = useCallback((log: Omit<KPILogEntry, "id">) => {
     const newLog: KPILogEntry = { ...log, id: genId("kpilog") };
-    setState((s) => ({
-      ...s,
-      kpiLogs: [...(s.kpiLogs ?? []), newLog],
-      brands: s.brands.map((b) =>
-        b.id === log.brandId
-          ? {
-              ...b,
-              kpis: b.kpis.map((k) =>
-                k.id === log.kpiId ? { ...k, current: k.current + log.value } : k
-              ),
-            }
-          : b
-      ),
-    }));
-  }, []);
+    setDoc(doc(db, "kpiLogs", newLog.id), newLog);
+    // Update KPI current tracking safely:
+    const brand = state.brands.find(b => b.id === log.brandId);
+    if (brand) {
+      updateDoc(doc(db, "brands", log.brandId), {
+        kpis: brand.kpis.map(k => k.id === log.kpiId ? { ...k, current: k.current + log.value } : k)
+      });
+    }
+  }, [state.brands]);
 
-  // ── Check-in ──────────────────────────────────────────────────────────────
   const getTodayCheckIn = useCallback((userId: string): CheckInRecord | undefined => {
     const today = new Date().toISOString().split("T")[0];
-    return state.checkIns?.find((c) => c.userId === userId && c.date === today);
+    return state.checkIns?.find(c => c.userId === userId && c.date === today);
   }, [state.checkIns]);
 
   const addCheckIn = useCallback((record: Omit<CheckInRecord, "id">) => {
-    const newRecord: CheckInRecord = { ...record, id: genId("ci") };
-    setState((s) => {
-      let newNotifs = s.notifications ?? [];
-      if (record.status === "late") {
-        const admins = s.users.filter((u) => u.role === "admin");
-        const usr = s.users.find(u => u.id === record.userId);
-        const notifs: Notification[] = admins.map((a) => ({
-          id: genId("notif"), userId: a.id, title: "Cảnh báo đi muộn",
-          body: `Nhân viên ${usr?.fullName} vừa điểm danh đi muộn vào lúc ${record.checkIn}.`,
+    const id = genId("ci");
+    setDoc(doc(db, "checkIns", id), { ...record, id });
+    if (record.status === "late") {
+      state.users.filter(u => u.role === "admin").forEach(a => {
+        const nId = genId("notif");
+        setDoc(doc(db, "notifications", nId), {
+          id: nId, userId: a.id, title: "Cảnh báo đi muộn",
+          body: `Nhân viên vừa điểm danh đi muộn vào lúc ${record.checkIn}.`,
           type: "checkin", read: false, createdAt: new Date().toISOString(),
-        }));
-        newNotifs = [...notifs, ...newNotifs];
-      }
-      return { ...s, checkIns: [...(s.checkIns ?? []), newRecord], notifications: newNotifs };
-    });
-  }, []);
+        });
+      });
+    }
+  }, [state.users]);
 
   const updateCheckIn = useCallback((id: string, updates: Partial<CheckInRecord>) => {
-    setState((s) => {
-      const currentRec = s.checkIns?.find(c => c.id === id);
-      const newCheckIns = (s.checkIns ?? []).map((c) => (c.id === id ? { ...c, ...updates } : c));
-      let newNotifs = s.notifications ?? [];
-
-      if (updates.status === "early_leave" && currentRec && currentRec.status !== "early_leave") {
-        const admins = s.users.filter((u) => u.role === "admin");
-        const usr = s.users.find(u => u.id === currentRec.userId);
-        const notifs: Notification[] = admins.map((a) => ({
-          id: genId("notif"), userId: a.id, title: "Cảnh báo về sớm",
-          body: `Nhân viên ${usr?.fullName} vừa check-out về sớm vào lúc ${updates.checkOut}.`,
+    const currentRec = state.checkIns.find(c => c.id === id);
+    updateDoc(doc(db, "checkIns", id), updates);
+    if (updates.status === "early_leave" && currentRec && currentRec.status !== "early_leave") {
+      state.users.filter(u => u.role === "admin").forEach(a => {
+        const nId = genId("notif");
+        setDoc(doc(db, "notifications", nId), {
+          id: nId, userId: a.id, title: "Cảnh báo về sớm",
+          body: `Một nhân viên vừa check-out về sớm vào lúc ${updates.checkOut}.`,
           type: "checkin", read: false, createdAt: new Date().toISOString(),
-        }));
-        newNotifs = [...notifs, ...newNotifs];
-      }
-      return { ...s, checkIns: newCheckIns, notifications: newNotifs };
-    });
-  }, []);
+        });
+      });
+    }
+  }, [state.checkIns, state.users]);
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const addNotification = useCallback((n: Omit<Notification, "id" | "createdAt">) => {
-    const newN: Notification = { ...n, id: genId("notif"), createdAt: new Date().toISOString() };
-    setState((s) => ({ ...s, notifications: [newN, ...(s.notifications ?? [])] }));
+    const id = genId("notif");
+    setDoc(doc(db, "notifications", id), { ...n, id, createdAt: new Date().toISOString() });
   }, []);
-
-  const markNotificationRead = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      notifications: (s.notifications ?? []).map((n) => n.id === id ? { ...n, read: true } : n),
-    }));
-  }, []);
-
+  const markNotificationRead = useCallback((id: string) => updateDoc(doc(db, "notifications", id), { read: true }), []);
   const markAllNotificationsRead = useCallback((userId: string) => {
-    setState((s) => ({
-      ...s,
-      notifications: (s.notifications ?? []).map((n) =>
-        n.userId === userId ? { ...n, read: true } : n
-      ),
-    }));
-  }, []);
+    state.notifications.forEach(n => {
+      if (n.userId === userId && !n.read) updateDoc(doc(db, "notifications", n.id), { read: true });
+    });
+  }, [state.notifications]);
 
-  if (!hydrated) return null;
+  // Before hydration / fetch finishes, render empty or loading if you prefer.
+  if (!firebaseInit) return null;
 
   return (
     <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout }}>
@@ -440,8 +343,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addUser, updateUser, deleteUser,
         addBrand, updateBrand, deleteBrand,
         updateKPI, addKPI, deleteKPI,
-        addKPILog,
-        addCheckIn, updateCheckIn, getTodayCheckIn,
+        addKPILog, addCheckIn, updateCheckIn, getTodayCheckIn,
         markNotificationRead, markAllNotificationsRead, addNotification,
       }}>
         {children}
