@@ -1,26 +1,179 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ── Dark Theme (default) ── */
+:root,
+[data-theme="dark"] {
+  --bg-primary: #0f1117;
+  --bg-secondary: #161b27;
+  --bg-card: #1e2535;
+  --bg-hover: #252d40;
+  --border: #2a3347;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8892a4;
+  --text-muted: #4a5568;
+  --shadow: rgba(0,0,0,0.4);
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --accent-yellow: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-pink: #ec4899;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Light Theme ── */
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f5f9;
+  --border: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --shadow: rgba(15, 23, 42, 0.08);
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-green: #10b981;
+  --accent-yellow: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-pink: #ec4899;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Light mode: card shadows for depth */
+[data-theme="light"] .animate-fadeIn > div,
+[data-theme="light"] [style*="background: var(--bg-card)"] {
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03), 0 1px 3px rgba(15, 23, 42, 0.02);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Apply theme bg to root layout */
+#__next { background-color: var(--bg-primary); min-height: 100%; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Form elements inherit theme */
+input, textarea, select {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── React Big Calendar ── */
+.rbc-calendar {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: "Inter", sans-serif !important;
+}
+.rbc-header {
+  background: var(--bg-secondary) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 4px !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-left: 1px solid var(--border) !important;
+}
+.rbc-month-view {
+  border: 1px solid var(--border) !important;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.rbc-day-bg { background: var(--bg-card) !important; }
+.rbc-off-range-bg { background: var(--bg-secondary) !important; opacity: 0.6; }
+.rbc-today { background: rgba(59,130,246,0.08) !important; }
+.rbc-date-cell {
+  color: var(--text-secondary) !important;
+  font-size: 0.78rem !important;
+  padding: 5px 8px !important;
+}
+.rbc-date-cell.rbc-now a { color: var(--accent-blue) !important; font-weight: 700 !important; }
+.rbc-date-cell a { color: var(--text-secondary) !important; }
+.rbc-event {
+  border-radius: 5px !important;
+  font-size: 0.7rem !important;
+  padding: 2px 6px !important;
+  border: none !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+.rbc-toolbar {
+  padding: 14px 20px !important;
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border) !important;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rbc-toolbar button {
+  color: var(--text-secondary) !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  font-size: 0.78rem !important;
+  transition: all 0.2s !important;
+  cursor: pointer !important;
+}
+.rbc-toolbar button:hover,
+.rbc-toolbar button.rbc-active {
+  background: var(--accent-blue) !important;
+  color: white !important;
+  border-color: var(--accent-blue) !important;
+}
+.rbc-toolbar-label { color: var(--text-primary) !important; font-weight: 700 !important; font-size: 0.95rem !important; }
+.rbc-month-row { border-top: 1px solid var(--border) !important; }
+.rbc-day-bg + .rbc-day-bg { border-left: 1px solid var(--border) !important; }
+.rbc-show-more { color: var(--accent-blue) !important; background: transparent !important; font-size: 0.7rem !important; font-weight: 600 !important; }
+.rbc-row-segment { padding: 1px 2px !important; }
+.rbc-week-view .rbc-time-slot { border-top: 1px solid var(--border) !important; }
+.rbc-time-view { border: 1px solid var(--border) !important; }
+.rbc-timeslot-group { border-bottom: 1px solid var(--border) !important; }
+.rbc-time-header { background: var(--bg-secondary) !important; }
+.rbc-allday-cell { background: var(--bg-card) !important; }
+.rbc-current-time-indicator { background: var(--accent-red) !important; }
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
+.animate-scaleIn { animation: scaleIn 0.22s ease forwards; }
+.animate-slideDown { animation: slideDown 0.2s ease forwards; }
+
+/* ── Smooth theme transitions ── */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease, box-shadow 0.2s ease;
+}
+
+/* Ensure modal overlay is always dark regardless of theme */
+[data-modal-overlay] {
+  background: rgba(0,0,0,0.6) !important;
 }
