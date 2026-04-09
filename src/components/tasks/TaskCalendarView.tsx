@@ -16,6 +16,7 @@ interface Props {
   brands: Brand[];
   users: User[];
   onTaskClick: (task: Task) => void;
+  showHistory: boolean;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -34,7 +35,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 type CalView = "month" | "week";
 
-export default function TaskCalendarView({ tasks, brands, users, onTaskClick }: Props) {
+export default function TaskCalendarView({ tasks, brands, users, onTaskClick, showHistory }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalView>("month");
 

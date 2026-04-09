@@ -295,6 +295,7 @@ export default function TasksPage() {
           onTaskClick={setSelectedTask}
           onStatusChange={(id, status) => updateTaskStatus(id, status)}
           isAdmin={isAdmin}
+          showHistory={filters.showHistory}
         />
       )}
       {view === "calendar" && (
@@ -303,6 +304,7 @@ export default function TasksPage() {
           brands={state.brands}
           users={state.users}
           onTaskClick={setSelectedTask}
+          showHistory={filters.showHistory}
         />
       )}
 

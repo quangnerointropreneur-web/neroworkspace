@@ -21,10 +21,15 @@ interface Props {
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
   isAdmin: boolean;
+  showHistory: boolean;
 }
 
-export default function TaskBoardView({ tasks, brands, users, onTaskClick, onStatusChange, isAdmin }: Props) {
-  const columns = useMemo(() => COLUMNS.map((col) => ({ ...col, tasks: tasks.filter((t) => t.status === col.id) })), [tasks]);
+export default function TaskBoardView({ tasks, brands, users, onTaskClick, onStatusChange, isAdmin, showHistory }: Props) {
+  const visibleColumns = useMemo(() => {
+    return showHistory ? COLUMNS : COLUMNS.filter(c => c.id !== 'done');
+  }, [showHistory]);
+
+  const columns = useMemo(() => visibleColumns.map((col) => ({ ...col, tasks: tasks.filter((t) => t.status === col.id) })), [tasks, visibleColumns]);
 
   const canMoveToDone = (task: Task) =>
     task.subTasks.length === 0 || task.subTasks.every((st) => st.status === "done" && st.acceptanceNotes.trim());
@@ -47,7 +52,7 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, minHeight: 400 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, 1fr)`, gap: 14, minHeight: 400 }}>
         {columns.map((col) => (
           <div key={col.id} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {/* Column header */}
