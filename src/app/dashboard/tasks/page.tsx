@@ -90,7 +90,7 @@ export default function TasksPage() {
     if (filters.dateTo)
       tasks = tasks.filter((t) => t.deadline <= filters.dateTo);
 
-    return tasks;
+    return [...tasks].sort((a, b) => a.deadline.localeCompare(b.deadline));
   }, [state.tasks, filters, currentUser, isAdmin]);
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== "");
@@ -160,15 +160,13 @@ export default function TasksPage() {
             })}
           </div>
 
-          {/* Add task */}
-          {isAdmin && (
-            <button
-              onClick={() => setShowAddTask(true)}
-              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}
-            >
-              <Plus size={15} /> Tạo task mới
-            </button>
-          )}
+          {/* Add task button - now available for all users */}
+          <button
+            onClick={() => setShowAddTask(true)}
+            style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}
+          >
+            <Plus size={15} /> Tạo task mới
+          </button>
         </div>
       </div>
 

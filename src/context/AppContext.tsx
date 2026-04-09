@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { User, Brand, Task, SubTask, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme } from "@/lib/types";
+import { User, Brand, Task, SubTask, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme, ScheduleSlot } from "@/lib/types";
 import { INITIAL_APP_STATE } from "@/lib/mockData";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
@@ -33,9 +33,11 @@ interface DataContextType {
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   updateTaskStatus: (id: string, status: TaskStatus) => void;
+  addTaskComment: (taskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => void;
   addSubTask: (taskId: string, subTask: Omit<SubTask, "id" | "taskId">) => void;
   updateSubTask: (taskId: string, subTaskId: string, updates: Partial<SubTask>) => void;
   deleteSubTask: (taskId: string, subTaskId: string) => void;
+  addSubTaskComment: (taskId: string, subTaskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => void;
   addUser: (user: Omit<User, "id" | "createdAt">) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
@@ -46,12 +48,24 @@ interface DataContextType {
   addKPI: (brandId: string, kpi: Omit<KPI, "id">) => void;
   deleteKPI: (brandId: string, kpiId: string) => void;
   addKPILog: (log: Omit<KPILogEntry, "id">) => void;
-  addCheckIn: (record: Omit<CheckInRecord, "id">) => void;
-  updateCheckIn: (id: string, updates: Partial<CheckInRecord>) => void;
+  addCheckIn: (record: Omit<CheckInRecord, "id">) => Promise<void>;
+  updateCheckIn: (id: string, updates: Partial<CheckInRecord>) => Promise<void>;
   getTodayCheckIn: (userId: string) => CheckInRecord | undefined;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: (userId: string) => void;
   addNotification: (n: Omit<Notification, "id" | "createdAt">) => void;
+  // Schedule actions
+  addScheduleSlot: (slot: Omit<ScheduleSlot, "id" | "createdAt">) => void;
+  updateScheduleSlot: (id: string, updates: Partial<ScheduleSlot>) => void;
+  deleteScheduleSlot: (id: string) => void;
+  requestBooking: (slotId: string, userId: string, content: string) => void;
+  suggestBooking: (slot: Omit<ScheduleSlot, "id" | "createdAt">) => void;
+  confirmBooking: (slotId: string) => void;
+  rejectBooking: (slotId: string) => void;
+  // Sub-task acceptance actions
+  submitSubTaskReview: (taskId: string, subTaskId: string, note: string) => void;
+  approveSubTask: (taskId: string, subTaskId: string, acceptanceNotes: string) => void;
+  rejectSubTask: (taskId: string, subTaskId: string, reason: string) => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -74,7 +88,7 @@ const LS_KEY_THEME = "nero_ops_theme";
 // =============================================================================
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>({
-    tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], theme: "dark"
+    tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], schedules: [], theme: "dark"
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
@@ -84,20 +98,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 1. Check if database is empty and seed if necessary
     const seedIfEmpty = async () => {
-      const snap = await getDocs(collection(db, "users"));
-      if (snap.empty) {
-        console.log("Database empty. Seeding mock data...");
-        const batch = writeBatch(db);
-        INITIAL_APP_STATE.users.forEach(u => batch.set(doc(db, "users", u.id), u));
-        INITIAL_APP_STATE.tasks.forEach(t => batch.set(doc(db, "tasks", t.id), t));
-        INITIAL_APP_STATE.brands.forEach(b => batch.set(doc(db, "brands", b.id), b));
-        INITIAL_APP_STATE.checkIns?.forEach(c => batch.set(doc(db, "checkIns", c.id), c));
-        INITIAL_APP_STATE.kpiLogs?.forEach(l => batch.set(doc(db, "kpiLogs", l.id), l));
-        INITIAL_APP_STATE.notifications?.forEach(n => batch.set(doc(db, "notifications", n.id), n));
-        await batch.commit();
-        console.log("Seeding complete.");
+      try {
+        const snap = await getDocs(collection(db, "users"));
+        if (snap.empty) {
+          console.log("Database empty. Seeding mock data...");
+          const batch = writeBatch(db);
+          INITIAL_APP_STATE.users.forEach(u => batch.set(doc(db, "users", u.id), u));
+          INITIAL_APP_STATE.tasks.forEach(t => batch.set(doc(db, "tasks", t.id), t));
+          INITIAL_APP_STATE.brands.forEach(b => batch.set(doc(db, "brands", b.id), b));
+          INITIAL_APP_STATE.checkIns?.forEach(c => batch.set(doc(db, "checkIns", c.id), c));
+          INITIAL_APP_STATE.kpiLogs?.forEach(l => batch.set(doc(db, "kpiLogs", l.id), l));
+          INITIAL_APP_STATE.notifications?.forEach(n => batch.set(doc(db, "notifications", n.id), n));
+          INITIAL_APP_STATE.schedules?.forEach(s => batch.set(doc(db, "schedules", s.id), s));
+          await batch.commit();
+          console.log("Seeding complete.");
+        }
+      } catch (err) {
+        console.error("Firebase connection error:", err);
+      } finally {
+        setFirebaseInit(true);
       }
-      setFirebaseInit(true);
     };
     seedIfEmpty();
 
@@ -122,10 +142,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setState(s => ({ ...s, kpiLogs: snap.docs.map(d => d.data() as KPILogEntry) }));
       }),
       onSnapshot(collection(db, "notifications"), (snap) => {
-        // Sort notifications by createdAt descending locally
         const notifs = snap.docs.map(d => d.data() as Notification)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setState(s => ({ ...s, notifications: notifs }));
+      }),
+      onSnapshot(collection(db, "schedules"), (snap) => {
+        const schedules = snap.docs.map(d => d.data() as ScheduleSlot)
+          .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+        setState(s => ({ ...s, schedules }));
       }),
     ];
 
@@ -163,22 +187,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
   const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "subTasks">): Task => {
+    let finalPicIds = task.picIds ?? (task.picId ? [task.picId] : []);
+    
+    // Auto-add admin(s) if not already included, so Nero can monitor
+    const admins = state.users.filter(u => u.role === "admin");
+    admins.forEach(admin => {
+      if (!finalPicIds.includes(admin.id)) {
+        finalPicIds.push(admin.id);
+      }
+    });
+
     const newTask: Task = {
-      ...task, id: genId("task"), subTasks: [], createdAt: new Date().toISOString(),
-      picIds: task.picIds ?? (task.picId ? [task.picId] : []),
+      ...task, 
+      id: genId("task"), 
+      subTasks: [], 
+      createdAt: new Date().toISOString(),
+      picIds: finalPicIds,
+      picId: finalPicIds[0] ?? "", // Ensure fallback for old code
     };
     setDoc(doc(db, "tasks", newTask.id), newTask);
 
-    newTask.picIds.forEach(uid => {
+    finalPicIds.forEach(uid => {
       const nId = genId("notif");
       setDoc(doc(db, "notifications", nId), {
         id: nId, userId: uid, title: "Công việc mới",
-        body: `Bạn vừa được giao một task mới: "${newTask.title}"`,
+        body: `Bạn vừa được giao hoặc mời theo dõi task mới: "${newTask.title}"`,
         type: "task", read: false, taskId: newTask.id, createdAt: new Date().toISOString()
       });
     });
     return newTask;
-  }, []);
+  }, [state.users]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => updateDoc(doc(db, "tasks", id), updates), []);
   const deleteTask = useCallback((id: string) => deleteDoc(doc(db, "tasks", id)), []);
@@ -208,6 +246,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       });
     }
   }, [state.tasks, state.users]);
+  
+  const addTaskComment = useCallback((taskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => {
+    const newComment: TaskComment = { ...comment, id: genId("msg"), createdAt: new Date().toISOString() };
+    updateDoc(doc(db, "tasks", taskId), {
+      comments: arrayUnion(newComment)
+    });
+  }, []);
 
   // ── SubTasks ──────────────────────────────────────────────────────────────
   const addSubTask = useCallback((taskId: string, subTask: Omit<SubTask, "id" | "taskId">) => {
@@ -241,6 +286,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteSubTask = useCallback((taskId: string, subTaskId: string) => {
     const task = state.tasks.find(t => t.id === taskId);
     if (task) updateDoc(doc(db, "tasks", taskId), { subTasks: task.subTasks.filter(st => st.id !== subTaskId) });
+  }, [state.tasks]);
+
+  const addSubTaskComment = useCallback((taskId: string, subTaskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const newComment: TaskComment = { ...comment, id: genId("msg"), createdAt: new Date().toISOString() };
+    const newSubs = task.subTasks.map(st => 
+      st.id === subTaskId ? { ...st, comments: [...(st.comments || []), newComment] } : st
+    );
+    updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
+  }, [state.tasks]);
+
+  // ── Sub-task Acceptance Flow ───────────────────────────────────────────────
+  const submitSubTaskReview = useCallback((taskId: string, subTaskId: string, note: string) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const newSubs = task.subTasks.map(st => st.id === subTaskId ? { ...st, status: "reviewing" as const, submissionNote: note } : st);
+    updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
+    // Notify all admins
+    state.users.filter(u => u.role === "admin").forEach(a => {
+      const nId = genId("notif");
+      const st = task.subTasks.find(s => s.id === subTaskId);
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: a.id, title: "Sub-task gửi nghiệm thu",
+        body: `Nhân viên vừa gửi yêu cầu nghiệm thu: "${st?.content}" trong task "${task.title}".`,
+        type: "subtask", read: false, taskId: task.id, createdAt: new Date().toISOString(),
+      });
+    });
+  }, [state.tasks, state.users]);
+
+  const approveSubTask = useCallback((taskId: string, subTaskId: string, acceptanceNotes: string) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const newSubs = task.subTasks.map(st => st.id === subTaskId ? { ...st, status: "done" as const, acceptanceNotes, rejectReason: "" } : st);
+    updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
+    const st = task.subTasks.find(s => s.id === subTaskId);
+    // Notify PICs
+    (st?.picIds ?? task.picIds).forEach(uid => {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: uid, title: "Sub-task được duyệt ✅",
+        body: `Nero đã duyệt nghiệm thu: "${st?.content}" trong task "${task.title}".`,
+        type: "subtask", read: false, taskId: task.id, createdAt: new Date().toISOString(),
+      });
+    });
+  }, [state.tasks]);
+
+  const rejectSubTask = useCallback((taskId: string, subTaskId: string, reason: string) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const newSubs = task.subTasks.map(st => st.id === subTaskId ? { ...st, status: "pending" as const, rejectReason: reason, submissionNote: "", acceptanceNotes: "" } : st);
+    updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
+    const st = task.subTasks.find(s => s.id === subTaskId);
+    // Notify PICs
+    (st?.picIds ?? task.picIds).forEach(uid => {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: uid, title: "Sub-task cần làm lại ↩️",
+        body: `Nero yêu cầu làm lại: "${st?.content}". Lý do: ${reason || "Không có ghi chú"}`,
+        type: "subtask", read: false, taskId: task.id, createdAt: new Date().toISOString(),
+      });
+    });
   }, [state.tasks]);
 
   // ── Users & Brands ────────────────────────────────────────────────────────
@@ -291,7 +398,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addCheckIn = useCallback((record: Omit<CheckInRecord, "id">) => {
     const id = genId("ci");
-    setDoc(doc(db, "checkIns", id), { ...record, id });
+    const p = setDoc(doc(db, "checkIns", id), { ...record, id });
     if (record.status === "late") {
       state.users.filter(u => u.role === "admin").forEach(a => {
         const nId = genId("notif");
@@ -302,11 +409,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       });
     }
+    return p;
   }, [state.users]);
 
   const updateCheckIn = useCallback((id: string, updates: Partial<CheckInRecord>) => {
     const currentRec = state.checkIns.find(c => c.id === id);
-    updateDoc(doc(db, "checkIns", id), updates);
+    const p = updateDoc(doc(db, "checkIns", id), updates);
     if (updates.status === "early_leave" && currentRec && currentRec.status !== "early_leave") {
       state.users.filter(u => u.role === "admin").forEach(a => {
         const nId = genId("notif");
@@ -317,6 +425,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       });
     }
+    return p;
   }, [state.checkIns, state.users]);
 
   // ── Notifications ─────────────────────────────────────────────────────────
@@ -331,8 +440,71 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [state.notifications]);
 
-  // Before hydration / fetch finishes, render empty or loading if you prefer.
-  if (!firebaseInit) return null;
+  // ── Schedule ─────────────────────────────────────────────────────────────────
+  const addScheduleSlot = useCallback((slot: Omit<ScheduleSlot, "id" | "createdAt">) => {
+    const id = genId("sch");
+    setDoc(doc(db, "schedules", id), { ...slot, id, createdAt: new Date().toISOString() });
+  }, []);
+
+  const updateScheduleSlot = useCallback((id: string, updates: Partial<ScheduleSlot>) =>
+    updateDoc(doc(db, "schedules", id), updates), []);
+
+  const deleteScheduleSlot = useCallback((id: string) => deleteDoc(doc(db, "schedules", id)), []);
+
+  const requestBooking = useCallback((slotId: string, userId: string, content: string) => {
+    updateDoc(doc(db, "schedules", slotId), { bookingUserId: userId, bookingRequest: content, bookingStatus: "pending" });
+    const user = state.users.find(u => u.id === userId);
+    state.users.filter(u => u.role === "admin").forEach(a => {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: a.id, title: "Yêu cầu đặt lịch 📅",
+        body: `${user?.fullName ?? "Nhân viên"} vừa gửi yêu cầu đặt lịch hỗ trợ.`,
+        type: "system", read: false, createdAt: new Date().toISOString(),
+      });
+    });
+  }, [state.users]);
+
+  const suggestBooking = useCallback((slot: Omit<ScheduleSlot, "id" | "createdAt">) => {
+    const id = genId("sch");
+    setDoc(doc(db, "schedules", id), { ...slot, id, createdAt: new Date().toISOString() });
+    
+    // Notify admin
+    const user = state.users.find(u => u.id === slot.bookingUserId);
+    state.users.filter(u => u.role === "admin").forEach(a => {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: a.id, title: "Đề xuất lịch hẹn mới 📅",
+        body: `${user?.fullName ?? "Một nhân viên"} vừa đề xuất khung giờ hẹn mới.`,
+        type: "system", read: false, createdAt: new Date().toISOString(),
+      });
+    });
+  }, [state.users]);
+
+  const confirmBooking = useCallback((slotId: string) => {
+    const slot = state.schedules.find(s => s.id === slotId);
+    updateDoc(doc(db, "schedules", slotId), { bookingStatus: "confirmed" });
+    if (slot?.bookingUserId) {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: slot.bookingUserId, title: "Lịch được xác nhận ✅",
+        body: `Nero đã xác nhận lịch hẹn ${slot.date} lúc ${slot.startTime}–${slot.endTime}.`,
+        type: "system", read: false, createdAt: new Date().toISOString(),
+      });
+    }
+  }, [state.schedules]);
+
+  const rejectBooking = useCallback((slotId: string) => {
+    const slot = state.schedules.find(s => s.id === slotId);
+    updateDoc(doc(db, "schedules", slotId), { bookingStatus: "rejected", bookingUserId: undefined, bookingRequest: undefined });
+    if (slot?.bookingUserId) {
+      const nId = genId("notif");
+      setDoc(doc(db, "notifications", nId), {
+        id: nId, userId: slot.bookingUserId, title: "Lịch bị từ chối ❌",
+        body: `Nero không thể nhận lịch hẹn ${slot.date} lúc ${slot.startTime}–${slot.endTime}. Vui lòng đặt lịch khác.`,
+        type: "system", read: false, createdAt: new Date().toISOString(),
+      });
+    }
+  }, [state.schedules]);
 
   return (
     <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout }}>
@@ -340,12 +512,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         state, theme, toggleTheme,
         addTask, updateTask, deleteTask, updateTaskStatus,
         addSubTask, updateSubTask, deleteSubTask,
+        submitSubTaskReview, approveSubTask, rejectSubTask,
         addUser, updateUser, deleteUser,
         addBrand, updateBrand, deleteBrand,
         updateKPI, addKPI, deleteKPI,
         addKPILog, addCheckIn, updateCheckIn, getTodayCheckIn,
         markNotificationRead, markAllNotificationsRead, addNotification,
+        addScheduleSlot, updateScheduleSlot, deleteScheduleSlot,
+        requestBooking, suggestBooking, confirmBooking, rejectBooking,
       }}>
+        {!firebaseInit && (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div style={{ color: 'var(--text-primary)', textAlign: 'center' }}>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4 mx-auto"></div>
+              <p>Đang tải dữ liệu Nero Ops...</p>
+            </div>
+          </div>
+        )}
         {children}
       </DataContext.Provider>
     </AuthContext.Provider>

@@ -1,4 +1,4 @@
-import { User, Brand, Task, SubTask, AppState } from "./types";
+import { User, Brand, Task, SubTask, AppState, ScheduleSlot } from "./types";
 
 // =============================================================================
 // MOCK DATA — Nero Ops System v2
@@ -131,12 +131,35 @@ export const INITIAL_TASKS: Task[] = [
   { id: "task-006", title: "Landing Page Summer Sale — Luxe Fashion", description: "Thiết kế và xây dựng landing page chuyên biệt cho chương trình sale hè 2026 của Luxe Fashion.", brandId: "brand-002", picId: "user-003", picIds: ["user-003"], startDate: "2026-04-15", deadline: "2026-04-30", status: "todo", priority: "low", subTasks: SUBTASKS_TASK6, createdAt: "2026-04-10T08:00:00Z" },
 ];
 
+export const INITIAL_SCHEDULES: ScheduleSlot[] = [
+  // Monday 06/04
+  { id: "sch-001", date: "2026-04-06", startTime: "09:00", endTime: "10:30", title: "Họ p chiẽn lược Q2 với BƠĐ", description: "Review kết quả KPI Q1 và lên kế hoạch marketing Q2/2026 cho toàn bộ các brand", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-002", date: "2026-04-06", startTime: "14:00", endTime: "15:00", title: "Gặp đối tác in ấn Booth Event", description: "Duyệt mẫu in ấn cho Pop-up Event Nero Coffee TP.HCM", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-003", date: "2026-04-06", startTime: "16:00", endTime: "17:00", title: "Slot hỗ trợ team", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+  // Tuesday 07/04
+  { id: "sch-004", date: "2026-04-07", startTime: "09:00", endTime: "11:00", title: "Review báo cáo KPI tháng 3", description: "Xét duyệt báo cáo KPI của các team, phân tích nguyên nhân không đạt target và đề xuất cải thiện", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-005", date: "2026-04-07", startTime: "14:00", endTime: "15:00", title: "Tư vấn chiẽn lược Content", type: "available", bookingUserId: "user-002", bookingRequest: "Em cần tư vấn về chiẽn lược content marketing cho Instagram Nero Coffee tháng 4, đặc biệt về cách tăng engagement và reach organic ạ Nero.", bookingStatus: "pending", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-006", date: "2026-04-07", startTime: "16:00", endTime: "17:00", title: "Slot tư vấn mở", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+  // Wednesday 08/04
+  { id: "sch-007", date: "2026-04-08", startTime: "10:00", endTime: "12:00", title: "Phỏng vấn ứng viên Content Writer", description: "Phỏng vấn 3 ứng viên vào vị trí Senior Content Writer cho bộ phận Creative", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-008", date: "2026-04-08", startTime: "15:00", endTime: "16:00", title: "Hướng dẫn thiết kế Lookbook", type: "available", bookingUserId: "user-003", bookingRequest: "Kính nhờ Nero hỗ trợ hướng dẫn định hướng thiết kế và visual style cho lookbook Summer 2026 của Luxe Fashion.", bookingStatus: "confirmed", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-009", date: "2026-04-08", startTime: "16:30", endTime: "17:30", title: "Slot tư vấn mở buổi chiều", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+  // Thursday 09/04
+  { id: "sch-010", date: "2026-04-09", startTime: "09:00", endTime: "10:00", title: "Cuộc gọi với Creative Agency", description: "Brief agency về campaign Luxe Fashion Summer 2026", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-011", date: "2026-04-09", startTime: "14:00", endTime: "15:30", title: "Hỗ trợ Brief KOL Campaign", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-012", date: "2026-04-09", startTime: "16:00", endTime: "17:00", title: "Slot tư vấn tự do", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+  // Friday 10/04
+  { id: "sch-013", date: "2026-04-10", startTime: "09:00", endTime: "10:00", title: "Weekly Team Meeting", description: "Review tiến độ tasks tuần qua, phân công công việc tuần mới", type: "busy", createdAt: "2026-04-01T08:00:00Z" },
+  { id: "sch-014", date: "2026-04-10", startTime: "14:00", endTime: "15:00", title: "Tư vấn chiẽn lược thương hiệu", type: "available", createdAt: "2026-04-01T08:00:00Z" },
+];
+
 export const INITIAL_APP_STATE: AppState = {
   users: INITIAL_USERS,
   brands: INITIAL_BRANDS,
   tasks: INITIAL_TASKS,
   checkIns: [],
   kpiLogs: [],
+  schedules: INITIAL_SCHEDULES,
   notifications: [
     { id: "notif-001", userId: "user-002", title: "Task mới được giao", body: "Bạn vừa được giao task: Chiến dịch KOL Marketing", type: "task", read: false, taskId: "task-005", createdAt: "2026-04-09T09:00:00Z" },
     { id: "notif-002", userId: "user-003", title: "Sub-task sắp đến hạn", body: "Sub-task 'Duyệt mẫu lookbook' đến hạn vào 18/04", type: "subtask", read: false, taskId: "task-003", createdAt: "2026-04-09T10:00:00Z" },

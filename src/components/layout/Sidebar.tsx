@@ -6,12 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth, useData } from "@/context/AppContext";
 import {
   LayoutDashboard, CheckSquare, Users, Briefcase, Zap,
-  LogOut, Clock, BarChart2, TrendingUp, ChevronLeft, ChevronRight,
+  LogOut, Clock, BarChart2, TrendingUp, ChevronLeft, ChevronRight, CalendarDays
 } from "lucide-react";
 
 interface NavItem {
   href: string;
   label: string;
+  employeeLabel?: string;
   icon: React.ReactNode;
   adminOnly?: boolean;
 }
@@ -20,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Tổng quan", icon: <LayoutDashboard size={17} /> },
   { href: "/dashboard/tasks", label: "Công việc", icon: <CheckSquare size={17} /> },
   { href: "/dashboard/attendance", label: "Chấm công", icon: <Clock size={17} /> },
+  { href: "/dashboard/schedule", label: "Lịch của Nero", employeeLabel: "Đặt lịch Nero", icon: <CalendarDays size={17} /> },
   { href: "/dashboard/kpi-log", label: "Nhập KPI", icon: <TrendingUp size={17} /> },
   { href: "/dashboard/report", label: "Báo cáo", icon: <BarChart2 size={17} />, adminOnly: true },
   { href: "/dashboard/hr", label: "Nhân sự", icon: <Users size={17} />, adminOnly: true },
@@ -132,7 +134,7 @@ export default function Sidebar() {
               {item.icon}
               {!collapsed && (
                 <>
-                  <span style={{ whiteSpace: "nowrap" }}>{item.label}</span>
+                  <span style={{ whiteSpace: "nowrap" }}>{(!isAdmin && item.employeeLabel) ? item.employeeLabel : item.label}</span>
                   {item.adminOnly && (
                     <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 4, background: "rgba(139,92,246,0.15)", color: "#8b5cf6", border: "1px solid rgba(139,92,246,0.3)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       ADMIN

@@ -163,14 +163,17 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                                   {isOverdue && <AlertCircle size={10} />}
                                   {format(parseISO(task.deadline), "dd/MM")}
                                 </span>
-                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_COLOR[task.priority], display: "inline-block" }} />
-                                  {pics.slice(0, 3).map((p, i) => (
-                                    <div key={p.id} style={{ width: 20, height: 20, borderRadius: 5, background: p.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "white", marginLeft: i > 0 ? -4 : 0, border: "1.5px solid var(--bg-card)", cursor: "default" }} title={p.fullName}>
-                                      {p.fullName.split(" ").slice(-1)[0].charAt(0)}
-                                    </div>
-                                  ))}
-                                  {pics.length > 3 && <span style={{ fontSize: 9, color: "var(--text-muted)" }}>+{pics.length - 3}</span>}
+                                
+                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <div style={{ display: "flex", alignItems: "center" }}>
+                                    {pics.slice(0, 2).map((p, i) => (
+                                      <div key={p.id} style={{ width: 18, height: 18, borderRadius: 5, background: p.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "white", marginLeft: i > 0 ? -4 : 0, border: "1.5px solid var(--bg-card)", position: "relative", zIndex: 10 - i }} title={p.fullName}>
+                                        {p.fullName.split(" ").slice(-1)[0].charAt(0)}
+                                      </div>
+                                    ))}
+                                    {pics.length > 2 && <span style={{ fontSize: 9, color: "var(--text-muted)", marginLeft: 2 }}>+{pics.length - 2}</span>}
+                                  </div>
+                                  {pics.length > 0 && <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 60 }}>{pics[0].fullName.split(" ").slice(-1)[0]}</span>}
                                 </div>
                               </div>
                             </div>

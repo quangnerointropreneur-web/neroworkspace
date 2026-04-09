@@ -5,7 +5,7 @@
 export type UserRole = "admin" | "employee";
 export type TaskStatus = "todo" | "inprogress" | "review" | "done";
 export type TaskPriority = "low" | "medium" | "high";
-export type SubTaskStatus = "pending" | "done";
+export type SubTaskStatus = "pending" | "reviewing" | "done";
 export type Theme = "dark" | "light";
 
 // ─── User / HR ───────────────────────────────────────────────────────────────
@@ -72,6 +72,14 @@ export interface Brand {
   createdAt: string;
 }
 
+// ─── Comments ────────────────────────────────────────────────────────────────
+export interface TaskComment {
+  id: string;
+  userId: string;
+  content: string;
+  createdAt: string;
+}
+
 // ─── Task / Sub-task ─────────────────────────────────────────────────────────
 export interface SubTask {
   id: string;
@@ -79,8 +87,26 @@ export interface SubTask {
   content: string;
   deadline: string;
   status: SubTaskStatus;
-  acceptanceNotes: string;
-  picIds: string[]; // multiple PICs
+  acceptanceNotes: string;    // Admin's sign-off note
+  submissionNote?: string;    // Employee's note when submitting for review
+  rejectReason?: string;      // Admin's reason for rejection
+  picIds: string[];           // multiple PICs
+  comments?: TaskComment[];
+}
+
+// ─── Nero Schedule ────────────────────────────────────────────────────────────
+export interface ScheduleSlot {
+  id: string;
+  date: string;          // "2026-04-07"
+  startTime: string;     // "09:00"
+  endTime: string;       // "10:00"
+  title: string;         // Admin internal — employees CANNOT see this
+  description?: string;  // Admin internal — employees CANNOT see this
+  type: "busy" | "available";
+  bookingUserId?: string;
+  bookingRequest?: string;
+  bookingStatus?: "pending" | "confirmed" | "rejected";
+  createdAt: string;
 }
 
 export interface Task {
@@ -94,6 +120,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   subTasks: SubTask[];
+  comments?: TaskComment[];
   createdAt: string;
   // keep picId for backward compat
   picId?: string;
@@ -119,6 +146,7 @@ export interface AppState {
   checkIns: CheckInRecord[];
   kpiLogs: KPILogEntry[];
   notifications: Notification[];
+  schedules: ScheduleSlot[];
   theme: Theme;
 }
 

@@ -2,12 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { useAuth, useData } from "@/context/AppContext";
-import { Task, SubTask, TaskStatus, TaskPriority } from "@/lib/types";
+import { Task, SubTask, TaskStatus, TaskPriority, SubTaskStatus } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
 import {
   X, Edit3, Save, Trash2, Plus, CheckSquare, Square,
   ChevronDown, ChevronUp, AlertCircle, Users, Flag,
-  Calendar, Tag, Clock,
+  Calendar, Tag, Clock, MessageSquare
 } from "lucide-react";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string }[] = [
@@ -29,7 +29,12 @@ interface Props {
 
 export default function TaskModal({ task: initialTask, onClose }: Props) {
   const { currentUser } = useAuth();
-  const { state, updateTask, deleteTask, addSubTask, updateSubTask, deleteSubTask } = useData();
+  const { 
+    state, updateTaskStatus, updateTask, deleteTask, 
+    addSubTask, updateSubTask, deleteSubTask,
+    submitSubTaskReview, approveSubTask, rejectSubTask,
+    addTaskComment, addSubTaskComment
+  } = useData();
   const isAdmin = currentUser?.role === "admin";
 
   // Always use latest task state from context
@@ -52,17 +57,41 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   const [newStContent, setNewStContent] = useState("");
   const [newStDeadline, setNewStDeadline] = useState("");
   const [newStPicIds, setNewStPicIds] = useState<string[]>([]);
-  const [showSubNotes, setShowSubNotes] = useState<string | null>(null);
 
   // Edit sub-task
   const [estContent, setEstContent] = useState("");
   const [estDeadline, setEstDeadline] = useState("");
   const [estPicIds, setEstPicIds] = useState<string[]>([]);
   const [estNotes, setEstNotes] = useState("");
-  const [estStatus, setEstStatus] = useState<"pending" | "done">("pending");
+  const [estStatus, setEstStatus] = useState<SubTaskStatus>("pending");
 
   const [confirmDeleteTask, setConfirmDeleteTask] = useState(false);
   const [confirmDeleteSub, setConfirmDeleteSub] = useState<string | null>(null);
+
+  // Sub-task review states
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [submitNote, setSubmitNote] = useState("");
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [approveNote, setApproveNote] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [showStComments, setShowStComments] = useState<string | null>(null);
+
+  // Discussion state
+  const [taskMsg, setTaskMsg] = useState("");
+  const [stMsg, setStMsg] = useState("");
+
+  const handleAddTaskComment = () => {
+    if (!taskMsg.trim() || !currentUser) return;
+    addTaskComment(task.id, { userId: currentUser.id, content: taskMsg.trim() });
+    setTaskMsg("");
+  };
+
+  const handleAddStComment = (stId: string) => {
+    if (!stMsg.trim() || !currentUser) return;
+    addSubTaskComment(task.id, stId, { userId: currentUser.id, content: stMsg.trim() });
+    setStMsg("");
+  };
 
   const openEditSub = (st: SubTask) => {
     setEditingSubId(st.id);
@@ -101,14 +130,6 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
     setNewStDeadline("");
     setNewStPicIds([]);
     setAddingSubTask(false);
-  };
-
-  const toggleSubStatus = (st: SubTask) => {
-    if (st.status === "pending") {
-      updateSubTask(task.id, st.id, { status: "done" });
-    } else {
-      updateSubTask(task.id, st.id, { status: "pending" });
-    }
   };
 
   const togglePic = (userId: string, current: string[], setFn: (ids: string[]) => void) => {
@@ -356,7 +377,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                 Chưa có sub-task nào
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {task.subTasks.map((st) => {
                   const isEditing = editingSubId === st.id;
                   const stPics = (st.picIds ?? []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean) as typeof state.users;
@@ -368,8 +389,8 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                       style={{
                         background: st.status === "done" ? "rgba(16,185,129,0.05)" : "var(--bg-secondary)",
                         border: `1px solid ${st.status === "done" ? "rgba(16,185,129,0.25)" : "var(--border)"}`,
-                        borderRadius: 10,
-                        padding: "10px 12px",
+                        borderRadius: 12,
+                        padding: "12px",
                       }}
                     >
                       {isEditing ? (
@@ -383,8 +404,9 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Trạng thái</div>
-                              <select value={estStatus} onChange={(e) => setEstStatus(e.target.value as "pending" | "done")} style={{ ...inp, cursor: "pointer" }}>
+                              <select value={estStatus} onChange={(e) => setEstStatus(e.target.value as any)} style={{ ...inp, cursor: "pointer" }}>
                                 <option value="pending">Chưa xong</option>
+                                <option value="reviewing">Chờ duyệt</option>
                                 <option value="done">Hoàn thành</option>
                               </select>
                             </div>
@@ -418,38 +440,147 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                         // View mode
                         <div>
                           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                            <button onClick={() => toggleSubStatus(st)} style={{ background: "none", border: "none", cursor: "pointer", color: st.status === "done" ? "var(--accent-green)" : "var(--text-muted)", paddingTop: 1, flexShrink: 0 }}>
-                              {st.status === "done" ? <CheckSquare size={16} /> : <Square size={16} />}
-                            </button>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: st.status === "done" ? "var(--text-muted)" : "var(--text-primary)", textDecoration: st.status === "done" ? "line-through" : "none", lineHeight: 1.4 }}>
                                 {st.content}
                               </div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, flexWrap: "wrap" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
                                 <span style={{ fontSize: 11, color: stOverdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: stOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 3 }}>
-                                  {stOverdue && <AlertCircle size={10} />}
+                                  <Calendar size={11} />
                                   {format(parseISO(st.deadline), "dd/MM/yyyy")}
                                 </span>
-                                {stPics.map((u) => (
-                                  <div key={u.id} style={{ width: 18, height: 18, borderRadius: 5, background: u.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "white" }} title={u.fullName}>
-                                    {u.fullName.split(" ").slice(-1)[0].charAt(0)}
-                                  </div>
-                                ))}
+                                
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                  {stPics.map((u) => (
+                                    <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 6px", background: "var(--bg-card)", borderRadius: 5, border: "1px solid var(--border)" }}>
+                                      <div style={{ width: 14, height: 14, borderRadius: 4, background: u.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "white" }}>
+                                        {u.fullName.split(" ").slice(-1)[0].charAt(0)}
+                                      </div>
+                                      <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-secondary)" }}>{u.fullName.split(" ").slice(-1)[0]}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                
+                                <button 
+                                  onClick={() => setShowStComments(showStComments === st.id ? null : st.id)}
+                                  style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: "var(--accent-blue)", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}
+                                >
+                                  <MessageSquare size={12} /> {st.comments?.length || 0}
+                                </button>
+
                                 {st.status === "done" && (
-                                  <span style={{ fontSize: 10, color: "var(--accent-green)", background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 5, padding: "1px 6px", fontWeight: 600 }}>✓ Hoàn thành</span>
+                                  <span style={{ fontSize: 10, color: "var(--accent-green)", background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 5, padding: "2px 8px", fontWeight: 700 }}>✅ Đã nghiệm thu</span>
+                                )}
+                                {st.status === "reviewing" && (
+                                  <span style={{ fontSize: 10, color: "#f59e0b", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 5, padding: "2px 8px", fontWeight: 700 }}>⏳ Chờ duyệt</span>
                                 )}
                               </div>
-                              {/* Acceptance notes */}
-                              {st.acceptanceNotes && (
-                                <div style={{ marginTop: 5, padding: "5px 8px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 6, fontSize: 11, color: "var(--accent-green)", lineHeight: 1.4 }}>
+
+                              {/* Rejection / Approval Notes */}
+                              {st.rejectReason && st.status === "pending" && (
+                                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", borderRadius: 8, fontSize: 11, color: "#f87171", fontStyle: "italic" }}>
+                                  Yêu cầu làm lại: {st.rejectReason}
+                                </div>
+                              )}
+                              {st.submissionNote && st.status !== "pending" && (
+                                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)", borderRadius: 8, fontSize: 11, color: "#f59e0b", fontStyle: "italic" }}>
+                                  Ghi chú nộp: {st.submissionNote}
+                                </div>
+                              )}
+                              {st.acceptanceNotes && st.status === "done" && (
+                                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)", borderRadius: 8, fontSize: 11, color: "var(--accent-green)", fontStyle: "italic" }}>
                                   📝 {st.acceptanceNotes}
                                 </div>
                               )}
+
+                              {/* Flow Actions */}
+                              <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                {st.status === "pending" && (
+                                  <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                                    {submittingId === st.id ? (
+                                      <div style={{ flex: 1 }}>
+                                        <textarea value={submitNote} onChange={e => setSubmitNote(e.target.value)} placeholder="Ghi chú kết quả..." style={{ ...inp, fontSize: 12, padding: "8px 12px", minHeight: 60, marginBottom: 6 }} />
+                                        <div style={{ display: "flex", gap: 6 }}>
+                                          <button onClick={() => { submitSubTaskReview(task.id, st.id, submitNote); setSubmittingId(null); setSubmitNote(""); }} style={{ flex: 1, padding: "6px 0", background: "#f59e0b", color: "white", borderRadius: 8, fontWeight: 700, border: "none", fontSize: 11, cursor: "pointer" }}> Gửi duyệt</button>
+                                          <button onClick={() => setSubmittingId(null)} style={{ padding: "6px 12px", background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", borderRadius: 8, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Hủy</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button onClick={() => { setSubmittingId(st.id); setSubmitNote(""); }} style={{ padding: "5px 12px", background: "rgba(245,158,11,0.1)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>📤 Gửi nghiệm thu</button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {isAdmin && st.status === "reviewing" && (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+                                    {approvingId === st.id ? (
+                                      <>
+                                        <textarea value={approveNote} onChange={e => setApproveNote(e.target.value)} placeholder="Ghi chú duyệt..." style={{ ...inp, fontSize: 12, padding: "8px 12px", minHeight: 60, marginBottom: 6 }} />
+                                        <div style={{ display: "flex", gap: 6 }}>
+                                          <button onClick={() => { approveSubTask(task.id, st.id, approveNote); setApprovingId(null); setApproveNote(""); }} style={{ flex: 1, padding: "6px 0", background: "var(--accent-green)", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✅ Xác nhận duyệt</button>
+                                          <button onClick={() => setApprovingId(null)} style={{ padding: "6px 12px", background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", borderRadius: 8, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Hủy</button>
+                                        </div>
+                                      </>
+                                    ) : rejectingId === st.id ? (
+                                      <>
+                                        <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Lý do làm lại..." style={{ ...inp, fontSize: 12, padding: "8px 12px", minHeight: 60, marginBottom: 6 }} />
+                                        <div style={{ display: "flex", gap: 6 }}>
+                                          <button onClick={() => { rejectSubTask(task.id, st.id, rejectNote); setRejectingId(null); setRejectNote(""); }} style={{ flex: 1, padding: "6px 0", background: "#ef4444", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>↩️ Yêu cầu sửa</button>
+                                          <button onClick={() => setRejectingId(null)} style={{ padding: "6px 12px", background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", borderRadius: 8, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Hủy</button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div style={{ display: "flex", gap: 6 }}>
+                                        <button onClick={() => { setApprovingId(st.id); setApproveNote(""); }} style={{ padding: "5px 12px", background: "rgba(16,185,129,0.1)", color: "var(--accent-green)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✅ Duyệt</button>
+                                        <button onClick={() => { setRejectingId(st.id); setRejectNote(""); }} style={{ padding: "5px 12px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>↩️ Từ chối</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <button onClick={() => openEditSub(st)} style={{ width: 26, height: 26, borderRadius: 7, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <Edit3 size={11} />
-                            </button>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                              <button onClick={() => openEditSub(st)} style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Edit3 size={12} />
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Subtask Discussion */}
+                          {showStComments === st.id && (
+                            <div style={{ marginTop: 15, paddingTop: 15, borderTop: "1px dashed var(--border)" }}>
+                              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Trao đổi Sub-task</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12, maxHeight: 180, overflowY: "auto", paddingRight: 6 }}>
+                                {(st.comments || []).map((c) => {
+                                  const cmter = state.users.find(u => u.id === c.userId);
+                                  const isMe = c.userId === currentUser?.id;
+                                  return (
+                                    <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+                                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-primary)" }}>{cmter?.fullName}</span>
+                                        <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{format(parseISO(c.createdAt), "HH:mm")}</span>
+                                      </div>
+                                      <div style={{ padding: "6px 10px", background: isMe ? "rgba(59,130,246,0.15)" : "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12, color: "var(--text-primary)", maxWidth: "90%", lineHeight: 1.4 }}>{c.content}</div>
+                                    </div>
+                                  );
+                                })}
+                                {(st.comments || []).length === 0 && <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center", padding: "10px 0" }}>Chưa có tin nhắn</div>}
+                              </div>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <input 
+                                  value={stMsg} 
+                                  onChange={(e) => setStMsg(e.target.value)} 
+                                  placeholder="Nhập tin nhắn..." 
+                                  style={{ ...inp, fontSize: 12, padding: "6px 12px" }} 
+                                  onKeyDown={(e) => e.key === "Enter" && handleAddStComment(st.id)} 
+                                />
+                                <button onClick={() => handleAddStComment(st.id)} style={{ width: 32, borderRadius: 8, background: "var(--accent-blue)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -457,14 +588,72 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                 })}
               </div>
             )}
+          </div>
 
-            {/* Completion warning */}
-            {!allSubDone && task.subTasks.length > 0 && (
-              <div style={{ marginTop: 10, padding: "10px 14px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 9, fontSize: 12, color: "#f59e0b", display: "flex", alignItems: "center", gap: 6 }}>
-                <AlertCircle size={13} />
-                Task chỉ có thể hoàn thành khi tất cả sub-tasks được hoàn thành và có ghi chú nghiệm thu.
+          {/* Task Discussion */}
+          <div style={{ marginTop: 10, padding: "20px", background: "var(--bg-secondary)", borderRadius: 18, border: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(59,130,246,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-blue)" }}>
+                <MessageSquare size={18} />
               </div>
-            )}
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>Thảo luận chung</h3>
+                <p style={{ fontSize: 11, color: "var(--text-muted)" }}>{task.comments?.length || 0} tin nhắn</p>
+              </div>
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 18, maxHeight: 350, overflowY: "auto", paddingRight: 8 }}>
+              {(task.comments || []).map((c) => {
+                const cmter = state.users.find(u => u.id === c.userId);
+                const isMe = c.userId === currentUser?.id;
+                return (
+                  <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                      {!isMe && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)" }}>{cmter?.fullName}</span>}
+                      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{format(parseISO(c.createdAt), "HH:mm dd/MM")}</span>
+                    </div>
+                    <div style={{ 
+                      padding: "10px 14px", 
+                      borderRadius: 14, 
+                      borderTopRightRadius: isMe ? 2 : 14,
+                      borderTopLeftRadius: isMe ? 14 : 2,
+                      background: isMe ? "var(--accent-blue)" : "var(--bg-card)", 
+                      color: isMe ? "white" : "var(--text-primary)",
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      border: isMe ? "none" : "1px solid var(--border)",
+                      maxWidth: "85%",
+                      boxShadow: "0 2px 5px rgba(0,0,0,0.06)"
+                    }}>
+                      {c.content}
+                    </div>
+                  </div>
+                );
+              })}
+              {(task.comments || []).length === 0 && (
+                <div style={{ textAlign: "center", padding: "40px 0", opacity: 0.5 }}>
+                  <MessageSquare size={32} style={{ margin: "0 auto 12px", display: "block" }} />
+                  <p style={{ fontSize: 13, fontWeight: 500 }}>Chưa có thảo luận nào. Bắt đầu ngay!</p>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <input 
+                value={taskMsg} 
+                onChange={(e) => setTaskMsg(e.target.value)} 
+                placeholder="Nhập nội dung thảo luận..." 
+                style={{ ...inp, padding: "12px 16px", borderRadius: 12 }} 
+                onKeyDown={(e) => e.key === "Enter" && handleAddTaskComment()}
+              />
+              <button 
+                onClick={handleAddTaskComment} 
+                disabled={!taskMsg.trim()}
+                style={{ padding: "0 22px", borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(59,130,246,0.3)", opacity: !taskMsg.trim() ? 0.6 : 1 }}
+              >
+                Gửi
+              </button>
+            </div>
           </div>
         </div>
       </div>

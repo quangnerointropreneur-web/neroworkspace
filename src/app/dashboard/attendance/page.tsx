@@ -109,28 +109,35 @@ export default function AttendancePage() {
     setShowAddForm(true);
   };
 
-  const handleAdminSave = () => {
+  const handleAdminSave = async () => {
     if (!addDate || !addCheckInTime) return;
     
-    const newStatus = calculateStatus(addUserId, addCheckInTime, addCheckOutTime || undefined);
+    try {
+      const safeCheckOut = addCheckOutTime.trim() || null;
+      const safeNote = addNote.trim() || null;
+      const newStatus = calculateStatus(addUserId, addCheckInTime, safeCheckOut);
 
-    if (editingRecordId) {
-      // Check for duplicate on different record
-      const existing = state.checkIns.find((c) => c.userId === addUserId && c.date === addDate && c.id !== editingRecordId);
-      if (existing) { alert("Đã có bản ghi chấm công cho ngày này."); return; }
+      if (editingRecordId) {
+        // Check for duplicate on different record
+        const existing = state.checkIns.find((c) => c.userId === addUserId && c.date === addDate && c.id !== editingRecordId);
+        if (existing) { alert("Đã có bản ghi chấm công cho ngày này."); return; }
 
-      updateCheckIn(editingRecordId, {
-        userId: addUserId, date: addDate, checkIn: addCheckInTime, checkOut: addCheckOutTime || undefined, note: addNote, status: newStatus
-      });
-    } else {
-      // Create new
-      const existing = state.checkIns.find((c) => c.userId === addUserId && c.date === addDate);
-      if (existing) { alert("Đã có bản ghi chấm công cho ngày này."); return; }
+        await updateCheckIn(editingRecordId, {
+          userId: addUserId, date: addDate, checkIn: addCheckInTime, checkOut: safeCheckOut as string, note: safeNote as string, status: newStatus
+        });
+      } else {
+        // Create new
+        const existing = state.checkIns.find((c) => c.userId === addUserId && c.date === addDate);
+        if (existing) { alert("Đã có bản ghi chấm công cho ngày này."); return; }
 
-      addCheckIn({ userId: addUserId, date: addDate, checkIn: addCheckInTime, checkOut: addCheckOutTime || undefined, note: addNote, status: newStatus });
+        await addCheckIn({ userId: addUserId, date: addDate, checkIn: addCheckInTime, checkOut: safeCheckOut as string, note: safeNote as string, status: newStatus });
+      }
+      
+      setShowAddForm(false);
+    } catch (err) {
+      console.error("Attendance Save Error:", err);
+      alert("Đã xảy ra lỗi khi lưu bản ghi. Vui lòng kiểm tra lại dữ liệu.");
     }
-    
-    setShowAddForm(false);
   };
 
   // Filtered records for the selected month
