@@ -58,11 +58,11 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, 1fr)`, gap: 14, minHeight: 400 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))`, gap: 14, minHeight: 400 }}>
         {columns.map((col) => (
-          <div key={col.id} style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          <div key={col.id} style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
             {/* Column header */}
-            <div style={{ padding: "11px 14px", borderRadius: "12px 12px 0 0", background: col.accent, border: `1px solid ${col.color}33`, borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: "11px 14px", borderRadius: "12px 12px 0 0", background: col.accent, border: `1px solid ${col.color}33`, borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: col.color, boxShadow: `0 0 8px ${col.color}66` }} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: col.color }}>{col.label}</span>
@@ -79,8 +79,9 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                   {...provided.droppableProps}
                     style={{
                       flex: 1,
-                      minHeight: 100,
-                      padding: "8px",
+                      maxHeight: "calc(100vh - 290px)",
+                      overflowY: "auto",
+                      padding: "8px 12px 12px 8px",
                       background: snapshot.isDraggingOver ? `${col.color}12` : "var(--bg-secondary)",
                       border: `1px solid ${snapshot.isDraggingOver ? col.color + "55" : "var(--border)"}`,
                     borderTop: "none",
