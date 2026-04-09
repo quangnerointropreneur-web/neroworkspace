@@ -146,7 +146,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
     });
     setEditingSubId(null);
   };
-
+  const saveTask = () => {
     updateTask(task.id, { 
       title: etTitle, 
       description: etDesc, 
