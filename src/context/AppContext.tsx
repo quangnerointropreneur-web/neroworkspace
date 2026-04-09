@@ -1,10 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { User, Brand, Task, SubTask, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme, ScheduleSlot } from "@/lib/types";
+import { User, Brand, Task, SubTask, TaskComment, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme, ScheduleSlot } from "@/lib/types";
 import { INITIAL_APP_STATE } from "@/lib/mockData";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, writeBatch, arrayUnion } from "firebase/firestore";
 
 // =============================================================================
 // AUTH CONTEXT
@@ -518,6 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateKPI, addKPI, deleteKPI,
         addKPILog, addCheckIn, updateCheckIn, getTodayCheckIn,
         markNotificationRead, markAllNotificationsRead, addNotification,
+        addTaskComment, addSubTaskComment,
         addScheduleSlot, updateScheduleSlot, deleteScheduleSlot,
         requestBooking, suggestBooking, confirmBooking, rejectBooking,
       }}>
