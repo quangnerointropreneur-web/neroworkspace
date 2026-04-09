@@ -60,7 +60,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
       {tasks.map((task, i) => {
         const brand = getBrand(task.brandId);
         const pics = getPics(task.picIds ?? [task.picId ?? ""].filter(Boolean));
-        const isOverdue = task.status !== "done" && isPast(parseISO(task.deadline));
+        const isOverdue = task.status !== "done" && task.deadline && isPast(parseISO(task.deadline));
         const doneSubCount = task.subTasks.filter((s) => s.status === "done").length;
         const isExpanded = expandedIds.has(task.id);
         const statusConf = STATUS_COLORS[task.status];

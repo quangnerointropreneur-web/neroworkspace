@@ -12,6 +12,7 @@ import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, wri
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
+  isAuthInitialized: boolean;
   login: (username: string, password: string) => boolean;
   logout: () => void;
 }
@@ -91,6 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], schedules: [], theme: "dark"
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthInitialized, setIsAuthInitialized] = useState(false);
   const [theme, setTheme] = useState<Theme>("dark");
   const [firebaseInit, setFirebaseInit] = useState(false);
 
@@ -160,6 +162,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedTheme = (localStorage.getItem(LS_KEY_THEME) as Theme) ?? "dark";
       setTheme(savedTheme);
       document.documentElement.setAttribute("data-theme", savedTheme);
+      setIsAuthInitialized(true);
+    } else if (typeof window !== "undefined") {
+      setIsAuthInitialized(true);
     }
 
     return () => unsubs.forEach(u => u());
@@ -507,7 +512,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.schedules]);
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, isAuthInitialized, login, logout }}>
       <DataContext.Provider value={{
         state, theme, toggleTheme,
         addTask, updateTask, deleteTask, updateTaskStatus,

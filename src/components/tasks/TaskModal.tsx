@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useAuth, useData } from "@/context/AppContext";
-import { Task, SubTask, TaskStatus, TaskPriority, SubTaskStatus } from "@/lib/types";
+import { Task, SubTask, TaskStatus, TaskPriority, SubTaskStatus, User } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
 import {
   X, Edit3, Save, Trash2, Plus, CheckSquare, Square,
   ChevronDown, ChevronUp, AlertCircle, Users, Flag,
-  Calendar, Tag, Clock, MessageSquare
+  Calendar, Tag, Clock, MessageSquare, AtSign
 } from "lucide-react";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string }[] = [
@@ -80,17 +80,50 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   // Discussion state
   const [taskMsg, setTaskMsg] = useState("");
   const [stMsg, setStMsg] = useState("");
+  
+  // Mentions State
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionActive, setMentionActive] = useState<{ type: "task" | "st"; subTaskId?: string } | null>(null);
+  const filteredMentionUsers = useMemo(() => {
+    if (!mentionQuery) return state.users;
+    return state.users.filter(u => u.fullName.toLowerCase().includes(mentionQuery.toLowerCase()));
+  }, [mentionQuery, state.users]);
 
   const handleAddTaskComment = () => {
     if (!taskMsg.trim() || !currentUser) return;
     addTaskComment(task.id, { userId: currentUser.id, content: taskMsg.trim() });
     setTaskMsg("");
+    setMentionActive(null);
   };
 
   const handleAddStComment = (stId: string) => {
     if (!stMsg.trim() || !currentUser) return;
     addSubTaskComment(task.id, stId, { userId: currentUser.id, content: stMsg.trim() });
     setStMsg("");
+    setMentionActive(null);
+  };
+
+  const handleInputChange = (val: string, type: "task" | "st", stId?: string) => {
+    if (type === "task") setTaskMsg(val); else setStMsg(val);
+    
+    const words = val.split(" ");
+    const lastWord = words[words.length - 1];
+    if (lastWord.startsWith("@")) {
+      setMentionQuery(lastWord.slice(1));
+      setMentionActive({ type, subTaskId: stId });
+    } else {
+      setMentionActive(null);
+    }
+  };
+
+  const selectMention = (user: User) => {
+    if (!mentionActive) return;
+    const currentMsg = mentionActive.type === "task" ? taskMsg : stMsg;
+    const words = currentMsg.split(" ");
+    words[words.length - 1] = `@${user.fullName} `;
+    const newMsg = words.join(" ");
+    if (mentionActive.type === "task") setTaskMsg(newMsg); else setStMsg(newMsg);
+    setMentionActive(null);
   };
 
   const openEditSub = (st: SubTask) => {
@@ -176,6 +209,57 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
       })}
     </div>
   );
+
+  const MentionList = () => {
+    if (!mentionActive) return null;
+    return (
+      <div style={{
+        position: "absolute",
+        bottom: "calc(100% + 8px)",
+        left: 0,
+        width: 220,
+        background: "var(--bg-card)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+        zIndex: 50,
+        overflow: "hidden",
+        maxHeight: 200,
+        overflowY: "auto"
+      }}>
+        <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 6 }}>
+          <AtSign size={11} /> Nhắc tên đồng nghiệp
+        </div>
+        {filteredMentionUsers.map(u => (
+          <div
+            key={u.id}
+            onClick={() => selectMention(u)}
+            style={{
+              padding: "8px 12px",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              cursor: "pointer",
+              transition: "background 0.15s"
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <div style={{ width: 24, height: 24, borderRadius: 6, background: u.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "white" }}>
+              {u.fullName.split(" ").slice(-1)[0].charAt(0)}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{u.fullName}</div>
+              <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.department}</div>
+            </div>
+          </div>
+        ))}
+        {filteredMentionUsers.length === 0 && (
+          <div style={{ padding: "12px", textAlign: "center", fontSize: 12, color: "var(--text-muted)" }}>Không thấy ai khớp</div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -549,7 +633,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
                           {/* Subtask Discussion */}
                           {showStComments === st.id && (
-                            <div style={{ marginTop: 15, paddingTop: 15, borderTop: "1px dashed var(--border)" }}>
+                            <div style={{ marginTop: 15, paddingTop: 15, borderTop: "1px dashed var(--border)", position: "relative" }}>
                               <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>Trao đổi Sub-task</div>
                               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12, maxHeight: 180, overflowY: "auto", paddingRight: 6 }}>
                                 {(st.comments || []).map((c) => {
@@ -567,17 +651,20 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                                 })}
                                 {(st.comments || []).length === 0 && <div style={{ fontSize: 11, color: "var(--text-muted)", textAlign: "center", padding: "10px 0" }}>Chưa có tin nhắn</div>}
                               </div>
-                              <div style={{ display: "flex", gap: 6 }}>
-                                <input 
-                                  value={stMsg} 
-                                  onChange={(e) => setStMsg(e.target.value)} 
-                                  placeholder="Nhập tin nhắn..." 
-                                  style={{ ...inp, fontSize: 12, padding: "6px 12px" }} 
-                                  onKeyDown={(e) => e.key === "Enter" && handleAddStComment(st.id)} 
-                                />
-                                <button onClick={() => handleAddStComment(st.id)} style={{ width: 32, borderRadius: 8, background: "var(--accent-blue)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                  <Plus size={16} />
-                                </button>
+                              <div style={{ position: "relative" }}>
+                                {mentionActive?.type === "st" && mentionActive.subTaskId === st.id && <MentionList />}
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <input 
+                                    value={stMsg} 
+                                    onChange={(e) => handleInputChange(e.target.value, "st", st.id)} 
+                                    placeholder="Nhập tin nhắn..." 
+                                    style={{ ...inp, fontSize: 12, padding: "6px 12px" }} 
+                                    onKeyDown={(e) => e.key === "Enter" && handleAddStComment(st.id)} 
+                                  />
+                                  <button onClick={() => handleAddStComment(st.id)} style={{ width: 32, borderRadius: 8, background: "var(--accent-blue)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <Plus size={16} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -638,21 +725,24 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               )}
             </div>
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <input 
-                value={taskMsg} 
-                onChange={(e) => setTaskMsg(e.target.value)} 
-                placeholder="Nhập nội dung thảo luận..." 
-                style={{ ...inp, padding: "12px 16px", borderRadius: 12 }} 
-                onKeyDown={(e) => e.key === "Enter" && handleAddTaskComment()}
-              />
-              <button 
-                onClick={handleAddTaskComment} 
-                disabled={!taskMsg.trim()}
-                style={{ padding: "0 22px", borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(59,130,246,0.3)", opacity: !taskMsg.trim() ? 0.6 : 1 }}
-              >
-                Gửi
-              </button>
+            <div style={{ position: "relative" }}>
+              {mentionActive?.type === "task" && <MentionList />}
+              <div style={{ display: "flex", gap: 10 }}>
+                <input 
+                  value={taskMsg} 
+                  onChange={(e) => handleInputChange(e.target.value, "task")} 
+                  placeholder="Nhập nội dung thảo luận..." 
+                  style={{ ...inp, padding: "12px 16px", borderRadius: 12 }} 
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTaskComment()}
+                />
+                <button 
+                  onClick={handleAddTaskComment} 
+                  disabled={!taskMsg.trim()}
+                  style={{ padding: "0 22px", borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(59,130,246,0.3)", opacity: !taskMsg.trim() ? 0.6 : 1 }}
+                >
+                  Gửi
+                </button>
+              </div>
             </div>
           </div>
         </div>
