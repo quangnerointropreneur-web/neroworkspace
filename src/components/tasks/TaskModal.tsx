@@ -48,7 +48,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   const [etDesc, setEtDesc] = useState(task.description);
   const [etStatus, setEtStatus] = useState<TaskStatus>(task.status);
   const [etPriority, setEtPriority] = useState<TaskPriority>(task.priority);
-  const [etDeadline, setEtDeadline] = useState(task.deadline);
+  const [etDeadline, setEtDeadline] = useState(task.deadline || "");
   const [etPicIds, setEtPicIds] = useState<string[]>(task.picIds ?? []);
 
   // Sub-task states
@@ -285,7 +285,9 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               {editingTask ? (
                 <input type="date" value={etDeadline} onChange={(e) => setEtDeadline(e.target.value)} style={inp} />
               ) : (
+                <span style={{ fontSize: 13, color: isOverdue ? "var(--accent-red)" : "var(--text-primary)", fontWeight: isOverdue ? 700 : 500 }}>
                   {task.deadline ? format(parseISO(task.deadline), "dd/MM/yyyy") : "—"}
+                </span>
               )}
             </div>
 
@@ -443,6 +445,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                                 {st.content}
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+                                <span style={{ fontSize: 11, color: stOverdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: stOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 3 }}>
                                   <Calendar size={11} />
                                   {st.deadline ? format(parseISO(st.deadline), "dd/MM/yyyy") : "—"}
                                 </span>
