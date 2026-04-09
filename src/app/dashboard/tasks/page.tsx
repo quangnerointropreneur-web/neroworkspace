@@ -86,11 +86,15 @@ export default function TasksPage() {
         t.description.toLowerCase().includes(filters.search.toLowerCase())
       );
     if (filters.dateFrom)
-      tasks = tasks.filter((t) => t.deadline >= filters.dateFrom);
+      tasks = tasks.filter((t) => t.deadline && t.deadline >= filters.dateFrom);
     if (filters.dateTo)
-      tasks = tasks.filter((t) => t.deadline <= filters.dateTo);
+      tasks = tasks.filter((t) => t.deadline && t.deadline <= filters.dateTo);
 
-    return [...tasks].sort((a, b) => a.deadline.localeCompare(b.deadline));
+    return [...tasks].sort((a, b) => {
+      if (!a.deadline) return 1;
+      if (!b.deadline) return -1;
+      return a.deadline.localeCompare(b.deadline);
+    });
   }, [state.tasks, filters, currentUser, isAdmin]);
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== "");

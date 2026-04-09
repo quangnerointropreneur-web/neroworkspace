@@ -83,7 +83,7 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                   {col.tasks.map((task, index) => {
                     const brand = getBrand(task.brandId);
                     const pics = getPics(task.picIds ?? [task.picId ?? ""].filter(Boolean));
-                    const isOverdue = task.status !== "done" && isPast(parseISO(task.deadline));
+                    const isOverdue = task.status !== "done" && task.deadline && isPast(parseISO(task.deadline));
                     const doneSubCount = task.subTasks.filter((s) => s.status === "done").length;
                     const allDone = canMoveToDone(task);
 
@@ -161,7 +161,7 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <span style={{ fontSize: 11, color: isOverdue ? "#ef4444" : "var(--text-muted)", display: "flex", alignItems: "center", gap: 3, fontWeight: isOverdue ? 600 : 400 }}>
                                   {isOverdue && <AlertCircle size={10} />}
-                                  {format(parseISO(task.deadline), "dd/MM")}
+                                  {task.deadline ? format(parseISO(task.deadline), "dd/MM") : "No date"}
                                 </span>
                                 
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>

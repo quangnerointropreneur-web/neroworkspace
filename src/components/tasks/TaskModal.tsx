@@ -138,7 +138,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
   const doneSubCount = task.subTasks.filter((s) => s.status === "done").length;
   const allSubDone = task.subTasks.length === 0 || task.subTasks.every((s) => s.status === "done" && s.acceptanceNotes.trim());
-  const isOverdue = task.status !== "done" && isPast(parseISO(task.deadline));
+  const isOverdue = task.status !== "done" && task.deadline && isPast(parseISO(task.deadline));
 
   const inp: React.CSSProperties = {
     background: "var(--bg-secondary)",
@@ -285,9 +285,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               {editingTask ? (
                 <input type="date" value={etDeadline} onChange={(e) => setEtDeadline(e.target.value)} style={inp} />
               ) : (
-                <span style={{ fontSize: 13, color: isOverdue ? "var(--accent-red)" : "var(--text-primary)", fontWeight: isOverdue ? 700 : 500 }}>
-                  {format(parseISO(task.deadline), "dd/MM/yyyy")}
-                </span>
+                  {task.deadline ? format(parseISO(task.deadline), "dd/MM/yyyy") : "—"}
               )}
             </div>
 
@@ -381,7 +379,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                 {task.subTasks.map((st) => {
                   const isEditing = editingSubId === st.id;
                   const stPics = (st.picIds ?? []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean) as typeof state.users;
-                  const stOverdue = st.status === "pending" && isPast(parseISO(st.deadline));
+                  const stOverdue = st.status === "pending" && st.deadline && isPast(parseISO(st.deadline));
 
                   return (
                     <div
@@ -445,9 +443,8 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                                 {st.content}
                               </div>
                               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, color: stOverdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: stOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 3 }}>
                                   <Calendar size={11} />
-                                  {format(parseISO(st.deadline), "dd/MM/yyyy")}
+                                  {st.deadline ? format(parseISO(st.deadline), "dd/MM/yyyy") : "—"}
                                 </span>
                                 
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
