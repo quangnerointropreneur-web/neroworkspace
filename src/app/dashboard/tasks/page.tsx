@@ -316,7 +316,7 @@ export default function TasksPage() {
       {/* Add Task Modal */}
       {showAddTask && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", padding: 20 }}
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", padding: "60px 20px", overflowY: "auto" }}
           onClick={(e) => e.target === e.currentTarget && setShowAddTask(false)}
         >
           <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 560, background: "var(--bg-card)", borderRadius: 20, border: "1px solid var(--border)", boxShadow: "0 32px 80px rgba(0,0,0,0.5)" }}>
