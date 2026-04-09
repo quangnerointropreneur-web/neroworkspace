@@ -50,6 +50,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   const [etPriority, setEtPriority] = useState<TaskPriority>(task.priority);
   const [etDeadline, setEtDeadline] = useState(task.deadline || "");
   const [etPicIds, setEtPicIds] = useState<string[]>(task.picIds ?? []);
+  const [etBrandId, setEtBrandId] = useState(task.brandId);
 
   // Sub-task states
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
@@ -146,13 +147,16 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
     setEditingSubId(null);
   };
 
-  const saveTask = () => {
-    const canDone = task.subTasks.length === 0 || task.subTasks.every((st) => st.status === "done" && st.acceptanceNotes.trim());
-    if (etStatus === "done" && !canDone) {
-      alert("⚠️ Tất cả sub-tasks phải hoàn thành và có ghi chú nghiệm thu trước khi đóng task.");
-      return;
-    }
-    updateTask(task.id, { title: etTitle, description: etDesc, status: etStatus, priority: etPriority, deadline: etDeadline, picIds: etPicIds, picId: etPicIds[0] });
+    updateTask(task.id, { 
+      title: etTitle, 
+      description: etDesc, 
+      status: etStatus, 
+      priority: etPriority, 
+      deadline: etDeadline, 
+      picIds: etPicIds, 
+      picId: etPicIds[0],
+      brandId: etBrandId 
+    });
     setEditingTask(false);
   };
 
@@ -338,15 +342,24 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
             {/* Status */}
             <div>
               <label style={lbl}><Flag size={12} style={{ display: "inline", marginRight: 4 }} />Trạng thái</label>
-              {editingTask ? (
-                <select value={etStatus} onChange={(e) => setEtStatus(e.target.value as TaskStatus)} style={{ ...inp, cursor: "pointer" }}>
-                  {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              ) : (
-                <span style={{ display: "inline-block", padding: "5px 12px", borderRadius: 8, background: `${STATUS_OPTIONS.find(o=>o.value===task.status)?.color}18`, border: `1px solid ${STATUS_OPTIONS.find(o=>o.value===task.status)?.color}40`, color: STATUS_OPTIONS.find(o=>o.value===task.status)?.color, fontSize: 13, fontWeight: 600 }}>
-                  {STATUS_OPTIONS.find(o => o.value === task.status)?.label}
-                </span>
-              )}
+              <select 
+                value={editingTask ? etStatus : task.status} 
+                onChange={(e) => {
+                  const val = e.target.value as TaskStatus;
+                  if (editingTask) setEtStatus(val);
+                  else updateTaskStatus(task.id, val);
+                }} 
+                style={{ 
+                  ...inp, 
+                  cursor: "pointer",
+                  background: `${STATUS_OPTIONS.find(o=>o.value===(editingTask ? etStatus : task.status))?.color}15`,
+                  color: STATUS_OPTIONS.find(o=>o.value===(editingTask ? etStatus : task.status))?.color,
+                  fontWeight: 700,
+                  border: `1px solid ${STATUS_OPTIONS.find(o=>o.value===(editingTask ? etStatus : task.status))?.color}40`,
+                }}
+              >
+                {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
             </div>
 
             {/* Priority */}
@@ -363,14 +376,28 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               )}
             </div>
 
+            {/* Brand */}
+            <div>
+              <label style={lbl}><Tag size={12} style={{ display: "inline", marginRight: 4 }} />Brand</label>
+              {editingTask ? (
+                <select value={etBrandId} onChange={(e) => setEtBrandId(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+                  {state.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              ) : (
+                <span style={{ display: "inline-block", padding: "5px 12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-primary)", fontSize: 13, fontWeight: 600 }}>
+                  {brand?.name || "N/A"}
+                </span>
+              )}
+            </div>
+
             {/* Deadline */}
             <div>
-              <label style={lbl}><Calendar size={12} style={{ display: "inline", marginRight: 4 }} />Deadline</label>
+              <label style={lbl}><Calendar size={12} style={{ display: "inline", marginRight: 4 }} />Hạn chót</label>
               {editingTask ? (
                 <input type="date" value={etDeadline} onChange={(e) => setEtDeadline(e.target.value)} style={inp} />
               ) : (
-                <span style={{ fontSize: 13, color: isOverdue ? "var(--accent-red)" : "var(--text-primary)", fontWeight: isOverdue ? 700 : 500 }}>
-                  {task.deadline ? format(parseISO(task.deadline), "dd/MM/yyyy") : "—"}
+                <span style={{ fontSize: 13, fontWeight: 600, color: isPast(parseISO(task.deadline || "")) && task.status !== "done" ? "#ef4444" : "var(--text-primary)" }}>
+                  {task.deadline ? format(parseISO(task.deadline), "dd/MM/yyyy") : "Chưa đặt"}
                 </span>
               )}
             </div>

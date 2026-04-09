@@ -58,7 +58,7 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))`, gap: 14, minHeight: 400 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))`, gap: 14, height: "calc(100vh - 270px)", minHeight: 400 }}>
         {columns.map((col) => (
           <div key={col.id} style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
             {/* Column header */}
@@ -79,17 +79,16 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                   {...provided.droppableProps}
                     style={{
                       flex: 1,
-                      maxHeight: "calc(100vh - 290px)",
                       overflowY: "auto",
                       padding: "8px 12px 12px 8px",
                       background: snapshot.isDraggingOver ? `${col.color}12` : "var(--bg-secondary)",
                       border: `1px solid ${snapshot.isDraggingOver ? col.color + "55" : "var(--border)"}`,
-                    borderTop: "none",
-                    borderRadius: "0 0 12px 12px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                    transition: "all 0.2s",
+                      borderTop: "none",
+                      borderRadius: "0 0 12px 12px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      transition: "all 0.2s",
                   }}
                 >
                   {col.tasks.map((task, index) => {
@@ -112,7 +111,6 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                               overflow: "hidden",
                               boxShadow: dsnap.isDragging ? `0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px ${col.color}33` : "0 1px 3px rgba(0,0,0,0.1)",
                               flexShrink: 0,
-                              minHeight: "fit-content",
                               ...drag.draggableProps.style,
                             }}
                           >
@@ -179,6 +177,25 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                                 </span>
                                 
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                  <select 
+                                    value={task.status} 
+                                    onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
+                                    style={{ 
+                                      padding: "2px 6px", 
+                                      fontSize: 10, 
+                                      borderRadius: 6, 
+                                      background: "var(--bg-secondary)", 
+                                      border: "1px solid var(--border)", 
+                                      color: "var(--text-secondary)", 
+                                      outline: "none",
+                                      cursor: "pointer"
+                                    }}
+                                  >
+                                    <option value="todo">Chờ xử lý</option>
+                                    <option value="inprogress">Đang thực hiện</option>
+                                    <option value="review">Chờ duyệt</option>
+                                    <option value="done">Hoàn thành</option>
+                                  </select>
                                   <div style={{ display: "flex", alignItems: "center" }}>
                                     {pics.slice(0, 2).map((p, i) => (
                                       <div key={p.id} style={{ width: 18, height: 18, borderRadius: 5, background: p.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "white", marginLeft: i > 0 ? -4 : 0, border: "1.5px solid var(--bg-card)", position: "relative", zIndex: 10 - i }} title={p.fullName}>
