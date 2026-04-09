@@ -111,6 +111,8 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                               borderRadius: 10,
                               overflow: "hidden",
                               boxShadow: dsnap.isDragging ? `0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px ${col.color}33` : "0 1px 3px rgba(0,0,0,0.1)",
+                              flexShrink: 0,
+                              minHeight: "fit-content",
                               ...drag.draggableProps.style,
                             }}
                           >

@@ -128,154 +128,144 @@ export default function TasksPage() {
 
   return (
     <div className="animate-fadeIn" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
-            Quản lý Công việc
-          </h1>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            {filteredTasks.length} task {hasActiveFilters ? "(đã lọc)" : ""}
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {/* View toggle */}
-          <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-            {viewButtons.map((btn) => {
-              const Icon = btn.icon;
-              return (
-                <button
-                  key={btn.id}
-                  onClick={() => setView(btn.id)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    border: "none",
-                    background: view === btn.id ? "rgba(59,130,246,0.2)" : "transparent",
-                    color: view === btn.id ? "#60a5fa" : "var(--text-secondary)",
-                    fontSize: 13,
-                    fontWeight: view === btn.id ? 600 : 400,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    borderRight: "1px solid var(--border)",
-                  }}
-                >
-                  <Icon size={14} />
-                  {btn.label}
-                </button>
-              );
-            })}
+      {/* Sticky Header Container */}
+      <div style={{ position: "sticky", top: -28, zIndex: 50, background: "var(--bg-primary)", padding: "0 0 16px 0", margin: "0 0 -4px 0", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
+              Quản lý Công việc
+            </h1>
+            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+              {filteredTasks.length} task {hasActiveFilters ? "(đã lọc)" : ""}
+            </p>
           </div>
 
-          {/* Add task button - now available for all users */}
-          {/* History toggle */}
-          <button
-            onClick={() => setFilters(f => ({ ...f, showHistory: !f.showHistory }))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 16px",
-              borderRadius: 10,
-              background: filters.showHistory ? "rgba(245,158,11,0.15)" : "var(--bg-card)",
-              border: `1px solid ${filters.showHistory ? "#f59e0b55" : "var(--border)"}`,
-              color: filters.showHistory ? "#f59e0b" : "var(--text-secondary)",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            <History size={14} />
-            Xem đầy đủ
-          </button>
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {/* View toggle */}
+            <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+              {viewButtons.map((btn) => {
+                const Icon = btn.icon;
+                return (
+                  <button
+                    key={btn.id}
+                    onClick={() => setView(btn.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "8px 14px",
+                      border: "none",
+                      background: view === btn.id ? "rgba(59,130,246,0.2)" : "transparent",
+                      color: view === btn.id ? "#60a5fa" : "var(--text-secondary)",
+                      fontSize: 13,
+                      fontWeight: view === btn.id ? 600 : 400,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      borderRight: "1px solid var(--border)",
+                    }}
+                  >
+                    <Icon size={14} />
+                    <span style={{ display: "none" }}>{btn.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-          <button
-            onClick={() => setShowAddTask(true)}
-            style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}
-          >
-            <Plus size={15} /> Tạo task mới
-          </button>
+            {/* History toggle */}
+            <button
+              onClick={() => setFilters(f => ({ ...f, showHistory: !f.showHistory }))}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderRadius: 10,
+                background: filters.showHistory ? "rgba(245,158,11,0.15)" : "var(--bg-card)",
+                border: `1px solid ${filters.showHistory ? "#f59e0b55" : "var(--border)"}`,
+                color: filters.showHistory ? "#f59e0b" : "var(--text-secondary)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              <History size={14} />
+              Xem đầy đủ
+            </button>
+
+            <button
+              onClick={() => setShowAddTask(true)}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}
+            >
+              <Plus size={16} />
+              Thêm task
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Filters */}
-      <div
-        style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          padding: "14px 18px",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 10,
-          alignItems: "center",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-muted)", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", flexShrink: 0 }}>
-          <Filter size={13} /> Lọc
-        </div>
+        {/* Filter Bar */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", background: "var(--bg-card)", padding: "12px 16px", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", marginRight: 5 }}>
+            <Filter size={14} />
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Lọc</span>
+          </div>
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Tìm kiếm..."
-          value={filters.search}
-          onChange={(e) => setFilter("search", e.target.value)}
-          style={{ ...inputStyle, width: 180 }}
-        />
+          <input
+            type="text"
+            placeholder="Tìm kiếm..."
+            value={filters.search}
+            onChange={(e) => setFilter("search", e.target.value)}
+            style={{ ...inputStyle, flex: 1, minWidth: 150 }}
+          />
 
-        {/* Brand filter */}
-        <select value={filters.brandId} onChange={(e) => setFilter("brandId", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-          <option value="">Tất cả Brand</option>
-          {state.brands.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-
-        {/* PIC filter (admin only) */}
-        {isAdmin && (
-          <select value={filters.picId} onChange={(e) => setFilter("picId", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-            <option value="">Tất cả PIC</option>
-            {state.users.map((u) => (
-              <option key={u.id} value={u.id}>{u.fullName}</option>
+          <select value={filters.brandId} onChange={(e) => setFilter("brandId", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+            <option value="">Tất cả Brand</option>
+            {state.brands.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
             ))}
           </select>
-        )}
 
-        {/* Status filter */}
-        <select value={filters.status} onChange={(e) => setFilter("status", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-          <option value="">Tất cả trạng thái</option>
-          <option value="todo">Chờ xử lý</option>
-          <option value="inprogress">Đang thực hiện</option>
-          <option value="review">Chờ duyệt</option>
-          <option value="done">Hoàn thành</option>
-        </select>
+          {isAdmin && (
+            <select value={filters.picId} onChange={(e) => setFilter("picId", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+              <option value="">Tất cả PIC</option>
+              {state.users.map((u) => (
+                <option key={u.id} value={u.id}>{u.fullName}</option>
+              ))}
+            </select>
+          )}
 
-        {/* Priority filter */}
-        <select value={filters.priority} onChange={(e) => setFilter("priority", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-          <option value="">Tất cả ưu tiên</option>
-          <option value="high">Cao</option>
-          <option value="medium">Vừa</option>
-          <option value="low">Thấp</option>
-        </select>
+          {/* Status filter */}
+          <select value={filters.status} onChange={(e) => setFilter("status", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="todo">Chờ xử lý</option>
+            <option value="inprogress">Đang thực hiện</option>
+            <option value="review">Chờ duyệt</option>
+            <option value="done">Hoàn thành</option>
+          </select>
 
-        {/* Date range */}
-        <input type="date" value={filters.dateFrom} onChange={(e) => setFilter("dateFrom", e.target.value)} style={{ ...inputStyle }} title="Từ ngày" />
-        <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>
-        <input type="date" value={filters.dateTo} onChange={(e) => setFilter("dateTo", e.target.value)} style={{ ...inputStyle }} title="Đến ngày" />
+          {/* Priority filter */}
+          <select value={filters.priority} onChange={(e) => setFilter("priority", e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+            <option value="">Tất cả ưu tiên</option>
+            <option value="high">Cao</option>
+            <option value="medium">Vừa</option>
+            <option value="low">Thấp</option>
+          </select>
 
-        {hasActiveFilters && (
-          <button
-            onClick={clearFilters}
-            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
-          >
-            <X size={12} /> Xóa lọc
-          </button>
-        )}
+          {/* Date range */}
+          <input type="date" value={filters.dateFrom} onChange={(e) => setFilter("dateFrom", e.target.value)} style={{ ...inputStyle }} title="Từ ngày" />
+          <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>
+          <input type="date" value={filters.dateTo} onChange={(e) => setFilter("dateTo", e.target.value)} style={{ ...inputStyle }} title="Đến ngày" />
+
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#f87171", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+            >
+              <X size={12} /> Xóa lọc
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Views */}
