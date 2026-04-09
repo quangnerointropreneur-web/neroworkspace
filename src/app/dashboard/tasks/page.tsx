@@ -190,7 +190,7 @@ export default function TasksPage() {
             }}
           >
             <History size={14} />
-            Lịch sử
+            Xem đầy đủ
           </button>
 
           <button

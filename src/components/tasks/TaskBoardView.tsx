@@ -26,10 +26,16 @@ interface Props {
 
 export default function TaskBoardView({ tasks, brands, users, onTaskClick, onStatusChange, isAdmin, showHistory }: Props) {
   const visibleColumns = useMemo(() => {
-    return showHistory ? COLUMNS : COLUMNS.filter(c => c.id !== 'done');
+    if (showHistory) return COLUMNS;
+    return COLUMNS.filter((c) => c.id !== "done");
   }, [showHistory]);
 
-  const columns = useMemo(() => visibleColumns.map((col) => ({ ...col, tasks: tasks.filter((t) => t.status === col.id) })), [tasks, visibleColumns]);
+  const columns = useMemo(() => {
+    return visibleColumns.map((col) => ({
+      ...col,
+      tasks: tasks.filter((t) => t.status === col.id),
+    }));
+  }, [tasks, visibleColumns]);
 
   const canMoveToDone = (task: Task) =>
     task.subTasks.length === 0 || task.subTasks.every((st) => st.status === "done" && st.acceptanceNotes.trim());
