@@ -166,4 +166,5 @@ export interface TaskFilters {
   search: string;
   dateFrom: string;
   dateTo: string;
+  showHistory: boolean;
 }

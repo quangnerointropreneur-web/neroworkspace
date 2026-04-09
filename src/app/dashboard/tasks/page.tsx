@@ -7,7 +7,7 @@ import TaskListView from "@/components/tasks/TaskListView";
 import TaskBoardView from "@/components/tasks/TaskBoardView";
 import TaskCalendarView from "@/components/tasks/TaskCalendarView";
 import TaskModal from "@/components/tasks/TaskModal";
-import { List, Columns, Calendar, Plus, X, Filter } from "lucide-react";
+import { List, Columns, Calendar, Plus, X, Filter, History } from "lucide-react";
 
 const DEFAULT_FILTERS: TaskFilters = {
   brandId: "",
@@ -17,6 +17,7 @@ const DEFAULT_FILTERS: TaskFilters = {
   search: "",
   dateFrom: "",
   dateTo: "",
+  showHistory: false,
 };
 
 export default function TasksPage() {
@@ -89,6 +90,11 @@ export default function TasksPage() {
       tasks = tasks.filter((t) => t.deadline && t.deadline >= filters.dateFrom);
     if (filters.dateTo)
       tasks = tasks.filter((t) => t.deadline && t.deadline <= filters.dateTo);
+
+    // Filter out completed tasks unless History mode is active
+    if (!filters.showHistory) {
+      tasks = tasks.filter((t) => t.status !== "done");
+    }
 
     return [...tasks].sort((a, b) => {
       if (!a.deadline) return 1;
@@ -165,6 +171,28 @@ export default function TasksPage() {
           </div>
 
           {/* Add task button - now available for all users */}
+          {/* History toggle */}
+          <button
+            onClick={() => setFilters(f => ({ ...f, showHistory: !f.showHistory }))}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 16px",
+              borderRadius: 10,
+              background: filters.showHistory ? "rgba(245,158,11,0.15)" : "var(--bg-card)",
+              border: `1px solid ${filters.showHistory ? "#f59e0b55" : "var(--border)"}`,
+              color: filters.showHistory ? "#f59e0b" : "var(--text-secondary)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            <History size={14} />
+            Lịch sử
+          </button>
+
           <button
             onClick={() => setShowAddTask(true)}
             style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}
