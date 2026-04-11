@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { messaging, db } from "@/lib/firebase";
 import { getToken, onMessage } from "firebase/messaging";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AppContext";
 import { Bell, X } from "lucide-react";
 
