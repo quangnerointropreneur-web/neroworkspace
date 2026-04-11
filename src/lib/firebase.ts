@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA3Fs3P-gR-ofK1nB03j8nM6f8RSopeBkw",
@@ -11,8 +12,15 @@ const firebaseConfig = {
   measurementId: "G-M9GV5K5RNE"
 };
 
-// Initialize Firebase securely for Next.js (avoid re-initialization)
+// Initialize Firebase securely for Next.js
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-export { app, db };
+// Messaging singleton (SSR safe)
+const messaging = async () => {
+  const supported = await isSupported();
+  return supported ? getMessaging(app) : null;
+};
+
+export { app, db, messaging };
+
