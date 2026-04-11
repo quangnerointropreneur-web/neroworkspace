@@ -190,6 +190,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(LS_KEY_USER);
   }, []);
 
+  // ── Notifications ─────────────────────────────────────────────────────────
+  const addNotification = useCallback((n: Omit<Notification, "id" | "createdAt">) => {
+    const id = genId("notif");
+    setDoc(doc(db, "notifications", id), { ...n, id, createdAt: new Date().toISOString() });
+  }, []);
+  const markNotificationRead = useCallback((id: string) => updateDoc(doc(db, "notifications", id), { read: true }), []);
+  const markAllNotificationsRead = useCallback((userId: string) => {
+    state.notifications.forEach(n => {
+      if (n.userId === userId && !n.read) updateDoc(doc(db, "notifications", n.id), { read: true });
+    });
+  }, [state.notifications]);
+
   // ── Tasks ─────────────────────────────────────────────────────────────────
   const addTask = useCallback((task: Omit<Task, "id" | "createdAt" | "subTasks">): Task => {
     let finalPicIds = task.picIds ?? (task.picId ? [task.picId] : []);
@@ -483,17 +495,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return p;
   }, [state.checkIns, state.users]);
 
-  // ── Notifications ─────────────────────────────────────────────────────────
-  const addNotification = useCallback((n: Omit<Notification, "id" | "createdAt">) => {
-    const id = genId("notif");
-    setDoc(doc(db, "notifications", id), { ...n, id, createdAt: new Date().toISOString() });
-  }, []);
-  const markNotificationRead = useCallback((id: string) => updateDoc(doc(db, "notifications", id), { read: true }), []);
-  const markAllNotificationsRead = useCallback((userId: string) => {
-    state.notifications.forEach(n => {
-      if (n.userId === userId && !n.read) updateDoc(doc(db, "notifications", n.id), { read: true });
-    });
-  }, [state.notifications]);
 
   // ── Schedule ─────────────────────────────────────────────────────────────────
   const addScheduleSlot = useCallback((slot: Omit<ScheduleSlot, "id" | "createdAt">) => {
