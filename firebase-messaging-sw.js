@@ -18,11 +18,34 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log("[firebase-messaging-sw.js] Received background message ", payload);
   
-  const notificationTitle = payload.notification.title;
+  const notificationTitle = payload.notification.title || "Nero Workspace Event";
   const notificationOptions = {
-    body: payload.notification.body,
+    body: payload.notification.body || "Bạn có cập nhật mới trong công việc.",
     icon: "/icon.png",
+    data: {
+       url: "/dashboard/tasks"
+    }
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
+    })
+  );
 });
