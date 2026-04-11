@@ -54,23 +54,56 @@ export default function NotificationManager() {
   };
 
   useEffect(() => {
+    if (!currentUser) return;
+
     const setupListener = async () => {
       const msg = await messaging();
       if (msg) {
         onMessage(msg, (payload) => {
-          console.log("Foreground message received:", payload);
-          // Standard browser notification for foreground
+          console.log("Foreground FCM message received:", payload);
           if (Notification.permission === "granted") {
-             new Notification(payload.notification?.title || "Nero Ops", {
+             new Notification(payload.notification?.title || "Nero Workspace", {
                body: payload.notification?.body,
                icon: "/icon.png"
              });
           }
         });
       }
+
+      // Real-time Firestore sync (for "push-like" behavior when app is open)
+      const startTime = new Date().toISOString();
+      const q = collection(db, "notifications");
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const data = change.doc.data();
+            // Only notify for NEW records created after the app started, 
+            // directed at the current user, and that are unread.
+            if (
+              data.userId === currentUser.id && 
+              data.createdAt > startTime && 
+              !data.read
+            ) {
+              if (Notification.permission === "granted") {
+                new Notification(data.title || "Nero Workspace", {
+                  body: data.body,
+                  icon: "/icon.png",
+                  tag: change.doc.id // prevent duplicates
+                });
+              }
+            }
+          }
+        });
+      });
+      return unsubscribe;
     };
-    setupListener();
-  }, []);
+    
+    let unsub: (() => void) | undefined;
+    setupListener().then(u => { if (typeof u === 'function') unsub = u; });
+    
+    return () => { if (unsub) unsub(); };
+  }, [currentUser]);
 
   if (!showPrompt || !currentUser) return null;
 

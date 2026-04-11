@@ -253,11 +253,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.tasks, state.users]);
   
   const addTaskComment = useCallback((taskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
     const newComment: TaskComment = { ...comment, id: genId("msg"), createdAt: new Date().toISOString() };
     updateDoc(doc(db, "tasks", taskId), {
       comments: arrayUnion(newComment)
     });
-  }, []);
+
+    // Notify all participants except the commenter
+    const commenter = state.users.find(u => u.id === comment.userId);
+    task.picIds.forEach(uid => {
+      if (uid !== comment.userId) {
+        addNotification({
+          userId: uid,
+          title: "Bình luận mới",
+          body: `${commenter?.fullName || "Ai đó"} vừa bình luận trong task "${task.title}"`,
+          type: "task",
+          read: false,
+          taskId
+        });
+      }
+    });
+  }, [state.tasks, state.users]);
 
   // ── SubTasks ──────────────────────────────────────────────────────────────
   const addSubTask = useCallback((taskId: string, subTask: Omit<SubTask, "id" | "taskId">) => {
@@ -265,7 +282,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!task) return;
     const newSub: SubTask = { ...subTask, id: genId("st"), taskId, picIds: subTask.picIds ?? [] };
     updateDoc(doc(db, "tasks", taskId), { subTasks: [...task.subTasks, newSub] });
-  }, [state.tasks]);
+
+    // Notify task participants about new sub-task
+    task.picIds.forEach(uid => {
+      addNotification({
+        userId: uid,
+        title: "Công việc phụ mới",
+        body: `Thêm sub-task "${newSub.content}" vào công việc "${task.title}"`,
+        type: "subtask",
+        read: false,
+        taskId
+      });
+    });
+  }, [state.tasks, addNotification]);
 
   const updateSubTask = useCallback((taskId: string, subTaskId: string, updates: Partial<SubTask>) => {
     const task = state.tasks.find(t => t.id === taskId);
@@ -296,12 +325,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addSubTaskComment = useCallback((taskId: string, subTaskId: string, comment: Omit<TaskComment, "id" | "createdAt">) => {
     const task = state.tasks.find(t => t.id === taskId);
     if (!task) return;
+    const st = task.subTasks.find(s => s.id === subTaskId);
+    if (!st) return;
+
     const newComment: TaskComment = { ...comment, id: genId("msg"), createdAt: new Date().toISOString() };
-    const newSubs = task.subTasks.map(st => 
-      st.id === subTaskId ? { ...st, comments: [...(st.comments || []), newComment] } : st
+    const newSubs = task.subTasks.map(sub => 
+      sub.id === subTaskId ? { ...sub, comments: [...(sub.comments || []), newComment] } : sub
     );
     updateDoc(doc(db, "tasks", taskId), { subTasks: newSubs });
-  }, [state.tasks]);
+
+    // Notify sub-task PICs and main task PICs
+    const admins = state.users.filter(u => u.role === "admin");
+    const targets = new Set([...task.picIds, ...(st.picIds ?? []), ...admins.map(a => a.id)]);
+    const commenter = state.users.find(u => u.id === comment.userId);
+
+    targets.forEach(uid => {
+      if (uid !== comment.userId) {
+        addNotification({
+          userId: uid,
+          title: "Thảo luận sub-task",
+          body: `${commenter?.fullName || "Ai đó"} bình luận về "${st.content}"`,
+          type: "subtask",
+          read: false,
+          taskId
+        });
+      }
+    });
+  }, [state.tasks, state.users, addNotification]);
 
   // ── Sub-task Acceptance Flow ───────────────────────────────────────────────
   const submitSubTaskReview = useCallback((taskId: string, subTaskId: string, note: string) => {
