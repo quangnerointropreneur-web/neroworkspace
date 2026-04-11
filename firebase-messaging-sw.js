@@ -18,12 +18,20 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log("[firebase-messaging-sw.js] Received background message ", payload);
   
-  const notificationTitle = payload.notification.title || "Nero Workspace Event";
+  // Resilient title/body extraction
+  const notificationTitle = 
+    payload.notification?.title || 
+    payload.data?.title || 
+    "Nero Workspace Cập nhật";
+    
   const notificationOptions = {
-    body: payload.notification.body || "Bạn có cập nhật mới trong công việc.",
+    body: payload.notification?.body || payload.data?.body || "Bạn có nội dung mới cần kiểm tra.",
     icon: "/icon.png",
+    badge: "/icon.png", // Small icon for top bar on Android
+    tag: payload.data?.tag || "nero-update", // Grouping
     data: {
-       url: "/dashboard/tasks"
+       // Look for URL in multiple possible locations
+       url: payload.fcm_options?.link || payload.data?.url || payload.data?.link || "/dashboard/tasks"
     }
   };
 
@@ -33,16 +41,23 @@ messaging.onBackgroundMessage((payload) => {
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || '/';
+  const urlToOpen = event.notification.data?.url || '/dashboard/tasks';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // 1. Try to find a matching open window and focus it
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
+        // Match base URL to avoid opening multiple tabs of the same dashboard
+        if (client.url.includes('/dashboard') && 'focus' in client) {
+          // If we want to be exact about the URL, we could navigate the existing client
+          if (client.url !== urlToOpen && 'navigate' in client) {
+            return client.navigate(urlToOpen).then(c => c.focus());
+          }
           return client.focus();
         }
       }
+      // 2. If no window open, open a new one
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
