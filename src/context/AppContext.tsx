@@ -235,7 +235,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return newTask;
   }, [state.users]);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => updateDoc(doc(db, "tasks", id), updates), []);
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (!task) return;
+
+    const p = updateDoc(doc(db, "tasks", id), updates);
+    
+    // Notify participants about the edit
+    task.picIds.forEach(uid => {
+      addNotification({
+        userId: uid,
+        title: "Cập nhật công việc",
+        body: `Công việc "${task.title}" vừa có thay đổi thông tin mới.`,
+        type: "task",
+        read: false,
+        taskId: id
+      });
+    });
+    return p;
+  }, [state.tasks, addNotification]);
+
   const deleteTask = useCallback((id: string) => deleteDoc(doc(db, "tasks", id)), []);
   
   const updateTaskStatus = useCallback((id: string, status: TaskStatus) => {
