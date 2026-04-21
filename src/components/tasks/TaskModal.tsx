@@ -267,10 +267,33 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(5px)", overflowY: "auto" }}
+      style={{ 
+        position: "fixed", 
+        inset: 0, 
+        zIndex: 500, 
+        display: "flex", 
+        alignItems: "center", // Changed from flex-start to center
+        justifyContent: "center", 
+        padding: "20px", 
+        background: "rgba(0,0,0,0.75)", // Darker backdrop
+        backdropFilter: "blur(10px)", // More blur
+        WebkitBackdropFilter: "blur(10px)", // Safari support
+        overflowY: "auto" 
+      }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 720, background: "var(--bg-card)", borderRadius: 20, border: "1px solid var(--border)", boxShadow: "0 32px 80px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+      <div className="animate-scaleIn" style={{ 
+        width: "100%", 
+        maxWidth: 720, 
+        maxHeight: "90vh", // Prevent overflow
+        background: "var(--bg-card)", 
+        borderRadius: 24, 
+        border: "1px solid var(--border)", 
+        boxShadow: "0 32px 80px rgba(0,0,0,0.6)", 
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column"
+      }}>
 
         {/* Brand accent bar */}
         <div style={{ height: 4, background: brand?.color ?? "#3b82f6" }} />
@@ -334,8 +357,8 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Body (Scrollable) */}
+        <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", flex: 1 }}>
 
           {/* Meta fields */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

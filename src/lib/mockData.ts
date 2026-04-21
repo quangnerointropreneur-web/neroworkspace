@@ -1,4 +1,4 @@
-import { User, Brand, Task, SubTask, AppState, ScheduleSlot } from "./types";
+import { User, Brand, Task, SubTask, AppState, ScheduleSlot, PersonalNote } from "./types";
 
 // =============================================================================
 // MOCK DATA — Nero Ops System v2
@@ -165,5 +165,6 @@ export const INITIAL_APP_STATE: AppState = {
     { id: "notif-002", userId: "user-003", title: "Sub-task sắp đến hạn", body: "Sub-task 'Duyệt mẫu lookbook' đến hạn vào 18/04", type: "subtask", read: false, taskId: "task-003", createdAt: "2026-04-09T10:00:00Z" },
     { id: "notif-003", userId: "user-002", title: "Task chuyển trạng thái Review", body: "Task Pop-up Event đã chuyển sang Review", type: "task", read: true, taskId: "task-002", createdAt: "2026-04-08T15:00:00Z" },
   ],
+  personalNotes: [],
   theme: "dark",
 };

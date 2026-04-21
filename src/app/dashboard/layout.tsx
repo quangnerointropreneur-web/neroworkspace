@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AppContext";
 import Sidebar from "@/components/layout/Sidebar";
@@ -13,6 +13,7 @@ export default function DashboardLayout({
 }) {
   const { isAuthenticated, isAuthInitialized } = useAuth();
   const router = useRouter();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (isAuthInitialized && !isAuthenticated) {
@@ -32,10 +33,10 @@ export default function DashboardLayout({
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
-      <Sidebar />
+      <Sidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
-        <Topbar />
-        <main style={{ flex: 1, padding: "28px 32px", overflowX: "hidden", overflowY: "auto", background: "var(--bg-primary)" }}>
+        <Topbar onMenuClick={() => setMobileMenuOpen(true)} />
+        <main style={{ flex: 1, padding: "16px 16px", overflowX: "hidden", overflowY: "auto", background: "var(--bg-primary)" }}>
           {children}
         </main>
       </div>

@@ -3,9 +3,11 @@
 import { useState, useRef, useEffect } from "react";
 import { useAuth, useData } from "@/context/AppContext";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search, X, Moon, Sun, CheckCheck, Clock, ListTodo, AlertCircle } from "lucide-react";
+import { Bell, Search, X, Moon, Sun, CheckCheck, Clock, ListTodo, AlertCircle, Menu } from "lucide-react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
+import TaskModal from "@/components/tasks/TaskModal";
+import { Task } from "@/lib/types";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Tổng quan",
@@ -32,7 +34,7 @@ const NOTIF_TYPE_COLOR: Record<string, string> = {
   system: "#6b7280",
 };
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { currentUser } = useAuth();
   const { state, theme, toggleTheme, markNotificationRead, markAllNotificationsRead, updateUser } = useData();
   const pathname = usePathname();
@@ -43,8 +45,17 @@ export default function Topbar() {
   const [showProfile, setShowProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatar ?? "");
+  const [isMobile, setIsMobile] = useState(false);
+  const [selectedTaskForModal, setSelectedTaskForModal] = useState<Task | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleSaveProfile = () => {
     if (currentUser) {
@@ -83,7 +94,15 @@ export default function Topbar() {
 
   const handleNotifClick = (taskId?: string, notifId?: string) => {
     if (notifId) markNotificationRead(notifId);
-    if (taskId) router.push("/dashboard/tasks");
+    if (taskId) {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (task) {
+        setSelectedTaskForModal(task);
+      } else {
+        // Fallback: navigate if task not found in local state
+        router.push(`/dashboard/tasks?id=${taskId}`);
+      }
+    }
     setShowNotif(false);
   };
 
@@ -100,19 +119,34 @@ export default function Topbar() {
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
-          paddingLeft: 24,
-          paddingRight: 20,
-          gap: 12,
+          paddingLeft: isMobile ? 12 : 24,
+          paddingRight: isMobile ? 12 : 20,
+          gap: 10,
           position: "sticky",
           top: 0,
           zIndex: 100,
           flexShrink: 0,
         }}
       >
+        {isMobile && (
+          <button
+            onClick={onMenuClick}
+            style={{ 
+              width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", 
+              border: "1px solid var(--border)", display: "flex", alignItems: "center", 
+              justifyContent: "center", cursor: "pointer", color: "var(--text-primary)" 
+            }}
+          >
+            <Menu size={20} />
+          </button>
+        )}
+
         {/* Page title */}
-        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginRight: "auto" }}>
-          {title}
-        </span>
+        {!isMobile && (
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginRight: "auto" }}>
+            {title}
+          </span>
+        )}
 
         {/* Search trigger */}
         <button
@@ -120,6 +154,7 @@ export default function Topbar() {
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: isMobile ? "center" : "flex-start",
             gap: 8,
             padding: "6px 14px",
             borderRadius: 9,
@@ -128,12 +163,18 @@ export default function Topbar() {
             color: "var(--text-muted)",
             cursor: "pointer",
             fontSize: 13,
-            minWidth: 160,
+            minWidth: isMobile ? 36 : 160,
+            width: isMobile ? 36 : "auto",
+            marginLeft: isMobile ? "auto" : 0
           }}
         >
           <Search size={14} />
-          <span>Tìm kiếm...</span>
-          <span style={{ marginLeft: "auto", fontSize: 10, background: "var(--border)", borderRadius: 4, padding: "1px 6px" }}>Ctrl+K</span>
+          {!isMobile && (
+            <>
+              <span>Tìm kiếm...</span>
+              <span style={{ marginLeft: "auto", fontSize: 10, background: "var(--border)", borderRadius: 4, padding: "1px 6px" }}>Ctrl+K</span>
+            </>
+          )}
         </button>
 
         {/* Theme toggle */}
@@ -393,6 +434,14 @@ export default function Topbar() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Task Modal triggered from notification */}
+      {selectedTaskForModal && (
+        <TaskModal
+          task={selectedTaskForModal}
+          onClose={() => setSelectedTaskForModal(null)}
+        />
       )}
     </>
   );

@@ -58,21 +58,13 @@ export default function EmployeeBookingView() {
   const selectedDate = format(weekDays[selectedIdx], "yyyy-MM-dd");
   const daySlots = weekSlots.filter((s) => s.date === selectedDate);
 
-  // Determine display status for employee view
   const getSlotStatus = (slot: ScheduleSlot) => {
-    // My own confirmed booking
     if (slot.bookingUserId === userId && slot.bookingStatus === "confirmed") return "my-confirmed";
-    // My own pending booking
     if (slot.bookingUserId === userId && slot.bookingStatus === "pending") return "my-pending";
-    // My rejected booking (slot freed up)
     if (slot.bookingUserId === userId && slot.bookingStatus === "rejected") return "free";
-    // Busy (admin's own block)
     if (slot.type === "busy") return "busy";
-    // Booked by someone else already confirmed
     if (slot.bookingStatus === "confirmed") return "busy";
-    // Pending from someone else → treat as free (just show as bookable but will conflict)
-    if (slot.bookingStatus === "pending" && slot.bookingUserId !== userId) return "busy"; // lock it
-    // Free available slot
+    if (slot.bookingStatus === "pending" && slot.bookingUserId !== userId) return "busy"; 
     return "free";
   };
 
@@ -93,7 +85,6 @@ export default function EmployeeBookingView() {
     if (!sDate || !sStart || !sEnd || !sContent.trim()) { setSError("Vui lòng điền đầy đủ thông tin."); return; }
     if (sStart >= sEnd) { setSError("Giờ kết thúc phải sau giờ bắt đầu."); return; }
     
-    // Suggest the slot
     suggestBooking({
       title: `Nhân viên đề xuất lịch`,
       date: sDate,
@@ -107,7 +98,6 @@ export default function EmployeeBookingView() {
     setSuggestModal(false);
   };
 
-  // Privacy-safe slot card — employee sees NO title/description
   const SlotCard = ({ slot }: { slot: ScheduleSlot }) => {
     const status = getSlotStatus(slot);
 
@@ -151,7 +141,6 @@ export default function EmployeeBookingView() {
       );
     }
 
-    // Free — bookable
     return (
       <div style={{ borderRadius: 16, border: "1px solid rgba(16,185,129,0.3)", background: "rgba(16,185,129,0.05)", padding: 16, display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <div style={{ width: 8, height: 28, borderRadius: 4, background: "rgba(16,185,129,0.6)", flexShrink: 0 }} />
@@ -167,106 +156,108 @@ export default function EmployeeBookingView() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyItems: "space-between", gap: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 10, margin: 0 }}>
-            <CalendarCheck color="var(--accent-green)" size={24} /> Đặt lịch Nero
-          </h1>
-          <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, margin: "4px 0 0" }}>Đặt lịch gặp & xin hỗ trợ từ Nero</p>
-        </div>
-      </div>
-
-      {/* Info banner */}
-      <div style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 16, padding: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(59,130,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Clock size={18} color="#3b82f6" />
-        </div>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Hướng dẫn</div>
-          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", lineHeight: 1.5, margin: 0 }}>
-            Chọn ô <span style={{ color: "#10b981", fontWeight: 800 }}>🟢 Trống</span> để đặt lịch gặp Nero. Ô <span style={{ color: "#ef4444", fontWeight: 800 }}>⛔ Bận</span> không thể đặt. Lịch sẽ được xác nhận sau khi Nero duyệt.
-          </p>
-        </div>
-      </div>
-
-      {/* Week navigator */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.02)" }}>
-        <button onClick={() => setWeekStart((d) => addDays(d, -7))} style={{ width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer" }}><ChevronLeft size={20} /></button>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{format(weekDays[0], "dd/MM")} – {format(weekDays[6], "dd/MM/yyyy")}</div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, marginTop: 4 }}>{weekSlots.filter((s) => getSlotStatus(s) === "free").length} slot có thể đặt</div>
-        </div>
-        <button onClick={() => setWeekStart((d) => addDays(d, 7))} style={{ width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer" }}><ChevronRight size={20} /></button>
-      </div>
-
-      {/* Mobile: Day tab strip */}
-      <div className="flex gap-2 overflow-x-auto pb-1 snap-x lg:hidden">
-        {weekDays.map((day, i) => {
-          const dayStr = format(day, "yyyy-MM-dd");
-          const freeCount = weekSlots.filter(s => s.date === dayStr && getSlotStatus(s) === "free").length;
-          const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
-          return (
-            <button key={i} onClick={() => setSelectedIdx(i)}
-              className="flex-none snap-start flex flex-col items-center px-4 py-2.5 transition-all outline-none"
-              style={{
-                borderRadius: 16,
-                border: selectedIdx === i ? "1px solid var(--accent-green)" : "1px solid var(--border)",
-                background: selectedIdx === i ? "var(--accent-green)" : "var(--bg-card)",
-                color: selectedIdx === i ? "white" : "var(--text-secondary)",
-                boxShadow: selectedIdx === i ? "0 4px 12px rgba(16,185,129,0.2)" : "none",
-              }}
-            >
-              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{DAY_LABELS[i]}</span>
-              <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2, color: isToday && selectedIdx !== i ? "var(--accent-green)" : "inherit" }}>{format(day, "dd")}</span>
-              {freeCount > 0 && <span style={{ fontSize: 9, fontWeight: 800, marginTop: 2, opacity: 0.9 }}>{freeCount} slot</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Mobile: Day slot list */}
-      <div className="lg:hidden" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 4 }}>
-          {DAY_FULL[selectedIdx]}, {format(weekDays[selectedIdx], "dd/MM/yyyy")}
-        </div>
-        {daySlots.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 0", borderRadius: 16, border: "2px dashed var(--border)", opacity: 0.4 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Không có slot ngày này</div>
+    <>
+      <div className="animate-fadeIn" style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 40 }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 10, margin: 0 }}>
+              <CalendarCheck color="var(--accent-green)" size={24} /> Đặt lịch Nero
+            </h1>
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, margin: "4px 0 0" }}>Đặt lịch gặp & xin hỗ trợ từ Nero</p>
           </div>
-        ) : (
-          daySlots.map(slot => <SlotCard key={slot.id} slot={slot} />)
-        )}
-        <button onClick={() => { setSDate(selectedDate); setSuggestModal(true); setSContent(""); }} style={{ width: "100%", padding: 12, borderRadius: 16, border: "2px dashed rgba(16,185,129,0.3)", background: "var(--bg-card)", color: "var(--accent-green)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
-          Đề xuất lịch giờ khác
-        </button>
-      </div>
+        </div>
 
-      {/* Desktop: 7-column week grid */}
-      <div className="hidden lg:grid grid-cols-7 gap-3">
-        {weekDays.map((day, i) => {
-          const dayStr = format(day, "yyyy-MM-dd");
-          const slots = weekSlots.filter((s) => s.date === dayStr);
-          const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
-          
-          return (
-            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12, border: isToday ? "2px solid rgba(16,185,129,0.3)" : "none", borderRadius: 18, padding: isToday ? 8 : 0, background: isToday ? "rgba(16,185,129,0.05)" : "transparent" }}>
-              <div style={{ textAlign: "center", padding: "10px 0", borderRadius: 12, border: "1px solid var(--border)", background: isToday ? "var(--accent-green)" : "var(--bg-card)", color: isToday ? "white" : "var(--text-muted)" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{DAY_LABELS[i]}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>{format(day, "dd")}</div>
-              </div>
-              {slots.length === 0 && <div style={{ textAlign: "center", padding: 24, fontSize: 11, color: "var(--text-muted)", opacity: 0.4, textTransform: "uppercase", fontWeight: 800 }}>Trống</div>}
-              {slots.map((slot) => <SlotCard key={slot.id} slot={slot} />)}
-              <button onClick={() => { setSDate(dayStr); setSuggestModal(true); setSContent(""); }} style={{ width: "100%", padding: 10, borderRadius: 12, border: "1px dashed rgba(16,185,129,0.4)", background: "transparent", color: "var(--accent-green)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", marginTop: "auto" }}>
-                Đề xuất lịch
+        {/* Info banner */}
+        <div style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 16, padding: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(59,130,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Clock size={18} color="#3b82f6" />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Hướng dẫn</div>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", lineHeight: 1.5, margin: 0 }}>
+              Chọn ô <span style={{ color: "#10b981", fontWeight: 800 }}>🟢 Trống</span> để đặt lịch gặp Nero. Ô <span style={{ color: "#ef4444", fontWeight: 800 }}>⛔ Bận</span> không thể đặt. Lịch sẽ được xác nhận sau khi Nero duyệt.
+            </p>
+          </div>
+        </div>
+
+        {/* Week navigator */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "12px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.02)" }}>
+          <button onClick={() => setWeekStart((d) => addDays(d, -7))} style={{ width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer" }}><ChevronLeft size={20} /></button>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>{format(weekDays[0], "dd/MM")} – {format(weekDays[6], "dd/MM/yyyy")}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, marginTop: 4 }}>{weekSlots.filter((s) => getSlotStatus(s) === "free").length} slot có thể đặt</div>
+          </div>
+          <button onClick={() => setWeekStart((d) => addDays(d, 7))} style={{ width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer" }}><ChevronRight size={20} /></button>
+        </div>
+
+        {/* Mobile: Day tab strip */}
+        <div className="flex gap-2 overflow-x-auto pb-1 snap-x lg:hidden">
+          {weekDays.map((day, i) => {
+            const dayStr = format(day, "yyyy-MM-dd");
+            const freeCount = weekSlots.filter(s => s.date === dayStr && getSlotStatus(s) === "free").length;
+            const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
+            return (
+              <button key={i} onClick={() => setSelectedIdx(i)}
+                className="flex-none snap-start flex flex-col items-center px-4 py-2.5 transition-all outline-none"
+                style={{
+                  borderRadius: 16,
+                  border: selectedIdx === i ? "1px solid var(--accent-green)" : "1px solid var(--border)",
+                  background: selectedIdx === i ? "var(--accent-green)" : "var(--bg-card)",
+                  color: selectedIdx === i ? "white" : "var(--text-secondary)",
+                  boxShadow: selectedIdx === i ? "0 4px 12px rgba(16,185,129,0.2)" : "none",
+                }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{DAY_LABELS[i]}</span>
+                <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2, color: isToday && selectedIdx !== i ? "var(--accent-green)" : "inherit" }}>{format(day, "dd")}</span>
+                {freeCount > 0 && <span style={{ fontSize: 9, fontWeight: 800, marginTop: 2, opacity: 0.9 }}>{freeCount} slot</span>}
               </button>
+            );
+          })}
+        </div>
+
+        {/* Mobile: Day slot list */}
+        <div className="lg:hidden" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: 4 }}>
+            {DAY_FULL[selectedIdx]}, {format(weekDays[selectedIdx], "dd/MM/yyyy")}
+          </div>
+          {daySlots.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 0", borderRadius: 16, border: "2px dashed var(--border)", opacity: 0.4 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>Không có slot ngày này</div>
             </div>
-          );
-        })}
+          ) : (
+            daySlots.map(slot => <SlotCard key={slot.id} slot={slot} />)
+          )}
+          <button onClick={() => { setSDate(selectedDate); setSuggestModal(true); setSContent(""); }} style={{ width: "100%", padding: 12, borderRadius: 16, border: "2px dashed rgba(16,185,129,0.3)", background: "var(--bg-card)", color: "var(--accent-green)", fontSize: 12, fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.02)" }}>
+            Đề xuất lịch giờ khác
+          </button>
+        </div>
+
+        {/* Desktop: 7-column week grid */}
+        <div className="hidden lg:grid grid-cols-7 gap-3">
+          {weekDays.map((day, i) => {
+            const dayStr = format(day, "yyyy-MM-dd");
+            const slots = weekSlots.filter((s) => s.date === dayStr);
+            const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
+            
+            return (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 12, border: isToday ? "2px solid rgba(16,185,129,0.3)" : "none", borderRadius: 18, padding: isToday ? 8 : 0, background: isToday ? "rgba(16,185,129,0.05)" : "transparent" }}>
+                <div style={{ textAlign: "center", padding: "10px 0", borderRadius: 12, border: "1px solid var(--border)", background: isToday ? "var(--accent-green)" : "var(--bg-card)", color: isToday ? "white" : "var(--text-muted)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{DAY_LABELS[i]}</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>{format(day, "dd")}</div>
+                </div>
+                {slots.length === 0 && <div style={{ textAlign: "center", padding: 24, fontSize: 11, color: "var(--text-muted)", opacity: 0.4, textTransform: "uppercase", fontWeight: 800 }}>Trống</div>}
+                {slots.map((slot) => <SlotCard key={slot.id} slot={slot} />)}
+                <button onClick={() => { setSDate(dayStr); setSuggestModal(true); setSContent(""); }} style={{ width: "100%", padding: 10, borderRadius: 12, border: "1px dashed rgba(16,185,129,0.4)", background: "transparent", color: "var(--accent-green)", fontSize: 11, fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", marginTop: "auto" }}>
+                  Đề xuất lịch
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking Modal - Outside animation div */}
       {bookingSlot && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={(e) => e.target === e.currentTarget && setBookingSlot(null)}>
           <div style={{ width: "100%", maxWidth: 480, background: "var(--bg-card)", borderRadius: 24, border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
@@ -330,7 +321,7 @@ export default function EmployeeBookingView() {
         </div>
       )}
 
-      {/* Suggest Modal */}
+      {/* Suggest Modal - Outside animation div */}
       {suggestModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={(e) => e.target === e.currentTarget && setSuggestModal(false)}>
           <div style={{ width: "100%", maxWidth: 480, background: "var(--bg-card)", borderRadius: 24, border: "1px solid var(--border)", boxShadow: "0 20px 40px rgba(0,0,0,0.4)" }}>
@@ -377,6 +368,6 @@ export default function EmployeeBookingView() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

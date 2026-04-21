@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Task, Brand, User, TaskStatus, SubTask } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
@@ -56,11 +56,38 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
   const getBrand = (id: string) => brands.find((b) => b.id === id);
   const getPics = (ids: string[]) => (ids ?? []).map((id) => users.find((u) => u.id === id)).filter(Boolean) as User[];
 
+  // Add mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(0, 1fr))`, gap: 14, height: "calc(100vh - 270px)", minHeight: 400 }}>
+      <div 
+        style={{ 
+          display: isMobile ? "flex" : "grid", 
+          gridTemplateColumns: isMobile ? "none" : `repeat(${visibleColumns.length}, minmax(0, 1fr))`, 
+          gap: 14, 
+          height: isMobile ? "auto" : "calc(100vh - 270px)", 
+          minHeight: 400,
+          overflowX: isMobile ? "auto" : "visible",
+          paddingBottom: isMobile ? 20 : 0,
+          scrollSnapType: isMobile ? "x mandatory" : "none",
+          WebkitOverflowScrolling: "touch"
+        }}
+      >
         {columns.map((col) => (
-          <div key={col.id} style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
+          <div key={col.id} style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: 0, 
+            minWidth: isMobile ? "85vw" : 0, 
+            scrollSnapAlign: isMobile ? "center" : "none" 
+          }}>
             {/* Column header */}
             <div style={{ padding: "11px 14px", borderRadius: "12px 12px 0 0", background: col.accent, border: `1px solid ${col.color}33`, borderBottom: "none", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>

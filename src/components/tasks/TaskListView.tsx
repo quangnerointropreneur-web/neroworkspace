@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Task, Brand, User, TaskPriority, TaskStatus } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
 import { AlertCircle, Calendar, ChevronDown, ChevronRight, CheckSquare, Square, Edit3 } from "lucide-react";
@@ -29,6 +29,16 @@ interface Props {
 
 export default function TaskListView({ tasks, brands, users, onTaskClick }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const columnWidths = isMobile ? "28px 1fr 70px 80px" : "28px 2.5fr 1fr 1.2fr 1fr 1fr 90px";
 
   const getBrand = (id: string) => brands.find((b) => b.id === id);
   const getPics = (ids: string[]) => (ids ?? []).map((id) => users.find((u) => u.id === id)).filter(Boolean) as User[];
@@ -51,10 +61,16 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
   return (
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden" }}>
       {/* Table header */}
-      <div style={{ display: "grid", gridTemplateColumns: "28px 2.5fr 1fr 1.2fr 1fr 1fr 90px", padding: "10px 16px", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
-        {["", "Tên công việc", "Brand", "PIC", "Deadline", "Ưu tiên", "Trạng thái"].map((h) => (
-          <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: columnWidths, padding: "10px 16px", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
+        {isMobile ? (
+          ["", "Công việc", "Hạn", "Trạng thái"].map((h) => (
+            <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
+          ))
+        ) : (
+          ["", "Tên công việc", "Brand", "PIC", "Deadline", "Ưu tiên", "Trạng thái"].map((h) => (
+            <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
+          ))
+        )}
       </div>
 
       {tasks.map((task, i) => {
@@ -71,7 +87,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "28px 2.5fr 1fr 1.2fr 1fr 1fr 90px",
+                gridTemplateColumns: columnWidths,
                 padding: "12px 16px",
                 borderBottom: "1px solid var(--border)",
                 cursor: "pointer",
@@ -90,54 +106,60 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
               <div onClick={() => onTaskClick(task)}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 3, display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_CONFIG[task.priority].color, flexShrink: 0 }} />
-                  {task.title}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "nowrap" : "normal" }}>{task.title}</span>
                 </div>
-                {task.subTasks.length > 0 && (
+                {task.subTasks.length > 0 && !isMobile && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
                     {doneSubCount}/{task.subTasks.length} sub-tasks hoàn thành
                   </div>
                 )}
               </div>
 
-              {/* Brand */}
-              <div>
-                {brand && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 6, background: `${brand.color}18`, border: `1px solid ${brand.color}40`, fontSize: 11, color: brand.color, fontWeight: 600 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: brand.color }} />
-                    {brand.name}
-                  </span>
-                )}
-              </div>
+              {/* Brand (Desktop) */}
+              {!isMobile && (
+                <div>
+                  {brand && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 6, background: `${brand.color}18`, border: `1px solid ${brand.color}40`, fontSize: 11, color: brand.color, fontWeight: 600 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: brand.color }} />
+                      {brand.name}
+                    </span>
+                  )}
+                </div>
+              )}
 
-              {/* PICs */}
-              <div style={{ display: "flex", gap: 3 }}>
-                {pics.slice(0, 3).map((p, idx) => (
-                  <div key={p.id} style={{ width: 26, height: 26, borderRadius: 7, background: p.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "white", marginLeft: idx > 0 ? -5 : 0, border: "1.5px solid var(--bg-card)" }} title={p.fullName}>
-                    {p.fullName.split(" ").slice(-1)[0].charAt(0)}
-                  </div>
-                ))}
-                {pics.length > 3 && <span style={{ fontSize: 10, color: "var(--text-muted)", alignSelf: "center" }}>+{pics.length - 3}</span>}
-              </div>
+              {/* PICs (Desktop) */}
+              {!isMobile && (
+                <div style={{ display: "flex", gap: 3 }}>
+                  {pics.slice(0, 3).map((p, idx) => (
+                    <div key={p.id} style={{ width: 26, height: 26, borderRadius: 7, background: p.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "white", marginLeft: idx > 0 ? -5 : 0, border: "1.5px solid var(--bg-card)" }} title={p.fullName}>
+                      {p.fullName.split(" ").slice(-1)[0].charAt(0)}
+                    </div>
+                  ))}
+                  {pics.length > 3 && <span style={{ fontSize: 10, color: "var(--text-muted)", alignSelf: "center" }}>+{pics.length - 3}</span>}
+                </div>
+              )}
 
               {/* Deadline */}
               <div style={{ fontSize: 12, color: isOverdue ? "var(--accent-red)" : "var(--text-secondary)", fontWeight: isOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 4 }}>
                 <Calendar size={12} />
-                {format(parseISO(task.deadline), "dd/MM/yyyy")}
+                {isMobile ? format(parseISO(task.deadline), "dd/MM") : format(parseISO(task.deadline), "dd/MM/yyyy")}
                 {isOverdue && <AlertCircle size={11} />}
               </div>
 
-              {/* Priority */}
-              <div>
-                <span style={{ fontSize: 11, color: PRIORITY_CONFIG[task.priority].color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: PRIORITY_CONFIG[task.priority].color }} />
-                  {PRIORITY_CONFIG[task.priority].label}
-                </span>
-              </div>
+              {/* Priority (Desktop) */}
+              {!isMobile && (
+                <div>
+                  <span style={{ fontSize: 11, color: PRIORITY_CONFIG[task.priority].color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: PRIORITY_CONFIG[task.priority].color }} />
+                    {PRIORITY_CONFIG[task.priority].label}
+                  </span>
+                </div>
+              )}
 
               {/* Status */}
               <div>
                 <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 6, background: statusConf.bg, color: statusConf.text, border: `1px solid ${statusConf.border}`, fontWeight: 600, whiteSpace: "nowrap" }}>
-                  {STATUS_LABELS[task.status]}
+                  {isMobile ? STATUS_LABELS[task.status].split(" ").pop() : STATUS_LABELS[task.status]}
                 </span>
               </div>
             </div>
@@ -151,7 +173,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
                   return (
                     <div
                       key={st.id}
-                      style={{ display: "grid", gridTemplateColumns: "28px 2.5fr 1fr 1.2fr 1fr 1fr 90px", padding: "8px 16px", borderBottom: "1px solid var(--border)", alignItems: "center" }}
+                      style={{ display: "grid", gridTemplateColumns: columnWidths, padding: "8px 16px", borderBottom: "1px solid var(--border)", alignItems: "center" }}
                     >
                       {/* Checkbox icon */}
                       <div style={{ display: "flex", justifyContent: "center", paddingLeft: 8 }}>

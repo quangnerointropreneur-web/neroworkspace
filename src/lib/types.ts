@@ -135,6 +135,16 @@ export interface Notification {
   type: "task" | "subtask" | "kpi" | "checkin" | "system";
   read: boolean;
   taskId?: string;
+  url?: string; // Target URL for deep-linking
+  createdAt: string;
+}
+
+// ─── Personal Note ──────────────────────────────────────────────────────────
+export interface PersonalNote {
+  id: string;
+  userId: string;
+  text: string;
+  done: boolean;
   createdAt: string;
 }
 
@@ -147,6 +157,7 @@ export interface AppState {
   kpiLogs: KPILogEntry[];
   notifications: Notification[];
   schedules: ScheduleSlot[];
+  personalNotes: PersonalNote[];
   theme: Theme;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { User, Brand, Task, SubTask, TaskComment, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme, ScheduleSlot } from "@/lib/types";
+import { User, Brand, Task, SubTask, TaskComment, AppState, TaskStatus, KPI, CheckInRecord, KPILogEntry, Notification, Theme, ScheduleSlot, PersonalNote } from "@/lib/types";
 import { INITIAL_APP_STATE } from "@/lib/mockData";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, writeBatch, arrayUnion } from "firebase/firestore";
@@ -67,6 +67,10 @@ interface DataContextType {
   submitSubTaskReview: (taskId: string, subTaskId: string, note: string) => void;
   approveSubTask: (taskId: string, subTaskId: string, acceptanceNotes: string) => void;
   rejectSubTask: (taskId: string, subTaskId: string, reason: string) => void;
+  // Personal Note actions
+  addPersonalNote: (note: Omit<PersonalNote, "id" | "createdAt" | "userId">) => void;
+  updatePersonalNote: (id: string, updates: Partial<PersonalNote>) => void;
+  deletePersonalNote: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextType | null>(null);
@@ -89,7 +93,7 @@ const LS_KEY_THEME = "nero_ops_theme";
 // =============================================================================
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>({
-    tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], schedules: [], theme: "dark"
+    tasks: [], users: [], brands: [], checkIns: [], kpiLogs: [], notifications: [], schedules: [], personalNotes: [], theme: "dark"
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthInitialized, setIsAuthInitialized] = useState(false);
@@ -152,6 +156,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const schedules = snap.docs.map(d => d.data() as ScheduleSlot)
           .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
         setState(s => ({ ...s, schedules }));
+      }),
+      onSnapshot(collection(db, "personalNotes"), (snap) => {
+        setState(s => ({ ...s, personalNotes: snap.docs.map(d => d.data() as PersonalNote) }));
       }),
     ];
 
@@ -581,6 +588,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [state.schedules]);
 
+  // ── Personal Notes ──────────────────────────────────────────────────────────
+  const addPersonalNote = useCallback((note: Omit<PersonalNote, "id" | "createdAt" | "userId">) => {
+    if (!currentUser) return;
+    const id = genId("pnote");
+    setDoc(doc(db, "personalNotes", id), {
+      ...note, id, userId: currentUser.id, createdAt: new Date().toISOString()
+    });
+  }, [currentUser]);
+
+  const updatePersonalNote = useCallback((id: string, updates: Partial<PersonalNote>) => 
+    updateDoc(doc(db, "personalNotes", id), updates), []);
+
+  const deletePersonalNote = useCallback((id: string) => deleteDoc(doc(db, "personalNotes", id)), []);
+
   return (
     <AuthContext.Provider value={{ currentUser, isAuthenticated: !!currentUser, isAuthInitialized, login, logout }}>
       <DataContext.Provider value={{
@@ -596,6 +617,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addTaskComment, addSubTaskComment,
         addScheduleSlot, updateScheduleSlot, deleteScheduleSlot,
         requestBooking, suggestBooking, confirmBooking, rejectBooking,
+        addPersonalNote, updatePersonalNote, deletePersonalNote,
       }}>
         {!firebaseInit && (
           <div style={{ position: 'fixed', inset: 0, background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>

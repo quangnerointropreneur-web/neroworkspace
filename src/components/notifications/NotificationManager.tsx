@@ -1,24 +1,65 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { messaging, db } from "@/lib/firebase";
 import { getToken, onMessage } from "firebase/messaging";
 import { collection, doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { useAuth, useData } from "@/context/AppContext";
-import { Bell, X, CheckCircle, Send } from "lucide-react";
+import { Bell, X, Share } from "lucide-react";
 
 export default function NotificationManager() {
+  const router = useRouter();
   const { currentUser } = useAuth();
   const { addNotification } = useData();
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Helper to get target URL based on notification data
+  const getTargetUrl = (data: any) => {
+    if (data.url) return data.url;
+    // Handle deep linking for tasks
+    if (data.taskId) return `/dashboard/tasks?id=${data.taskId}`;
+    if (data.type === "task" || data.type === "subtask") {
+      if (data.id) return `/dashboard/tasks?id=${data.id}`;
+      return "/dashboard/tasks";
+    }
+    if (data.type === "hr" || data.type === "checkin") return "/dashboard/hr";
+    if (data.type === "kpi") return "/dashboard/kpi-log";
+    return "/dashboard/tasks";
+  };
+
   useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      setPermission(Notification.permission);
-      if (Notification.permission === "default") {
-        setShowPrompt(true);
+    if (typeof window !== "undefined") {
+      // Check notification permission
+      if ("Notification" in window) {
+        setPermission(Notification.permission);
+        if (Notification.permission === "default") {
+          setShowPrompt(true);
+        }
+      }
+
+      // Check if iOS and not PWA
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+      
+      if (isIOS && !isStandalone) {
+        // Show install guide once per session if not installed
+        const seen = sessionStorage.getItem('pwa_guide_seen');
+        if (!seen) setShowInstallGuide(true);
+      }
+
+      // Explicit Service Worker Registration
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+          .then((registration) => {
+            console.log('Service Worker registered with scope:', registration.scope);
+          })
+          .catch((err) => {
+            console.error('Service Worker registration failed:', err);
+          });
       }
     }
   }, []);
@@ -34,8 +75,11 @@ export default function NotificationManager() {
       if (status === "granted") {
         const msg = await messaging();
         if (msg) {
+          // Get token via the service worker registration
+          const registration = await navigator.serviceWorker.ready;
           const token = await getToken(msg, {
-            vapidKey: "BLc_Hv3dgl1pj0oX9S2dgeAjEfyIbbu3jWAivySXh3FjtDugfB4VamqS_Kg3_s-4nWHKf2Gz-fCmGWpSCe2vfU8"
+            vapidKey: "BLc_Hv3dgl1pj0oX9S2dgeAjEfyIbbu3jWAivySXh3FjtDugfB4VamqS_Kg3_s-4nWHKf2Gz-fCmGWpSCe2vfU8",
+            serviceWorkerRegistration: registration
           });
 
           if (token) {
@@ -58,27 +102,6 @@ export default function NotificationManager() {
     }
   };
 
-  const sendTestNotification = () => {
-    if (!currentUser) return;
-    
-    // 1. Local trigger immediate
-    if (Notification.permission === "granted") {
-      new Notification("Thông báo thử từ Nero Ops", {
-        body: "Nếu bạn thấy thông báo này, cổng thông báo trên trình duyệt của bạn hoạt động tốt!",
-        icon: "/icon.png"
-      });
-    }
-
-    // 2. Database trigger (to test sync)
-    addNotification({
-      userId: currentUser.id,
-      title: "Kiểm tra hệ thống Nero",
-      body: "Đồng bộ thời gian thực đang hoạt động ổn định.",
-      type: "system",
-      read: false
-    });
-  };
-
   useEffect(() => {
     if (!currentUser || permission !== "granted") return;
 
@@ -88,16 +111,20 @@ export default function NotificationManager() {
         onMessage(msg, (payload) => {
           console.log("Foreground FCM message received:", payload);
           if (Notification.permission === "granted") {
-             new Notification(payload.notification?.title || "Nero Workspace", {
-               body: payload.notification?.body,
-               icon: "/icon.png"
+             const n = new Notification(payload.notification?.title || "Nero Workspace", {
+               body: payload.notification?.body || payload.data?.body,
+               icon: "/icon.png",
+               data: payload.data
              });
+             n.onclick = () => {
+               window.focus();
+               const url = getTargetUrl(payload.data || {});
+               router.push(url);
+             };
           }
         });
       }
 
-      // Real-time Firestore sync (relaxed timing)
-      // We look for messages created in the last 1 minute to avoid missing latency gaps
       const now = new Date();
       const bufferTime = new Date(now.getTime() - 60000).toISOString(); 
       
@@ -111,13 +138,18 @@ export default function NotificationManager() {
               data.createdAt > bufferTime && 
               !data.read
             ) {
-              console.log("Real-time notification record detected:", data);
               if (Notification.permission === "granted") {
-                new Notification(data.title || "Nero Workspace", {
+                const n = new Notification(data.title || "Nero Workspace", {
                   body: data.body,
                   icon: "/icon.png",
-                  tag: change.doc.id
+                  tag: change.doc.id,
+                  data: data
                 });
+                n.onclick = () => {
+                  window.focus();
+                  const url = getTargetUrl(data);
+                  router.push(url);
+                };
               }
             }
           }
@@ -129,93 +161,50 @@ export default function NotificationManager() {
     let unsub: (() => void) | undefined;
     setupListener().then(u => { if (typeof u === 'function') unsub = u; });
     return () => { if (unsub) unsub(); };
-  }, [currentUser, permission]);
-
-  // Status Indicator - only show if permission is already granted
-  if (permission === "granted" && !showPrompt) {
-    return (
-      <div 
-        onClick={sendTestNotification}
-        title="Thông báo đang hoạt động. Bấm để gửi thử."
-        style={{
-          position: "fixed",
-          bottom: 12,
-          right: 12,
-          zIndex: 900,
-          background: "rgba(16,185,129,0.1)",
-          backdropFilter: "blur(8px)",
-          border: "1px solid rgba(16,185,129,0.2)",
-          padding: "6px 12px",
-          borderRadius: "20px",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          cursor: "pointer",
-          fontSize: 10,
-          fontWeight: 600,
-          color: "#10b981",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
-        }}
-      >
-        <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#10b981", boxShadow: "0 0 8px #10b981" }} />
-        Nero Notification Active
-        <Send size={10} style={{ marginLeft: 4 }} />
-      </div>
-    );
-  }
-
-  if (!showPrompt || !currentUser) return null;
+  }, [currentUser, permission, router]);
 
   return (
-    <div style={{
-      position: "fixed",
-      bottom: 20,
-      right: 20,
-      zIndex: 1000,
-      width: 320,
-      background: "var(--bg-card)",
-      border: "1px solid var(--border)",
-      borderRadius: 16,
-      padding: 16,
-      boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
-      animation: "slideInVertical 0.5s ease-out"
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(59,130,246,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent-blue)" }}>
-          <Bell size={20} />
+    <>
+      {/* Install Guide for iOS */}
+      {showInstallGuide && (
+        <div style={{ position: "fixed", bottom: 20, left: 16, right: 16, zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--accent-blue)", borderRadius: 16, padding: "16px 20px", boxShadow: "0 10px 40px rgba(0,0,0,0.3)", animation: "slideUp 0.4s ease-out" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Bell size={22} color="var(--accent-blue)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Nhận thông báo khi đóng app</h4>
+              <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                Để nhận thông báo trên iPhone, hãy nhấn <Share size={14} style={{ display: "inline", verticalAlign: "middle" }} /> sau đó chọn <b>"Thêm vào MH chính"</b>.
+              </p>
+            </div>
+            <button onClick={() => { setShowInstallGuide(false); sessionStorage.setItem('pwa_guide_seen', 'true'); }} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4 }}>
+              <X size={20} />
+            </button>
+          </div>
         </div>
-        <button onClick={() => setShowPrompt(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
-          <X size={16} />
-        </button>
-      </div>
-      <div>
-        <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>Bật thông báo đẩy?</h4>
-        <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-          Để cập nhật ngay lập tức các thay đổi công việc và tin nhắn mới trên Desktop & iPhone.
-        </p>
-      </div>
-      <button 
-        onClick={requestPermission}
-        disabled={isRefreshing}
-        style={{
-          width: "100%",
-          padding: "10px 0",
-          background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-          color: "white",
-          border: "none",
-          borderRadius: 10,
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: "pointer",
-          boxShadow: "0 4px 12px rgba(59,130,246,0.3)",
-          opacity: isRefreshing ? 0.7 : 1
-        }}
-      >
-        {isRefreshing ? "Đang xử lý..." : "Cho phép ngay"}
-      </button>
-    </div>
+      )}
+
+      {/* Permission Prompt */}
+      {showPrompt && !showInstallGuide && permission === "default" && (
+        <div style={{ position: "fixed", bottom: 20, left: 16, right: 16, zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "16px 20px", boxShadow: "0 10px 40px rgba(0,0,0,0.3)", animation: "slideUp 0.4s ease-out" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Bell size={20} color="var(--accent-blue)" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>Bật thông báo</h4>
+              <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Để không bỏ lỡ các công việc quan trọng.</p>
+            </div>
+            <button onClick={requestPermission} disabled={isRefreshing} style={{ padding: "8px 16px", borderRadius: 10, background: "var(--accent-blue)", border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              {isRefreshing ? "..." : "Bật"}
+            </button>
+            <button onClick={() => setShowPrompt(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
