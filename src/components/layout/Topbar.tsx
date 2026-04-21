@@ -8,6 +8,8 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import TaskModal from "@/components/tasks/TaskModal";
 import { Task } from "@/lib/types";
+import { db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Tổng quan",
@@ -92,18 +94,30 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     if (showSearch) setTimeout(() => searchRef.current?.focus(), 50);
   }, [showSearch]);
 
-  const handleNotifClick = (taskId?: string, notifId?: string) => {
+  const handleNotifClick = async (taskId?: string, notifId?: string) => {
     if (notifId) markNotificationRead(notifId);
-    if (taskId) {
-      const task = state.tasks.find((t) => t.id === taskId);
-      if (task) {
-        setSelectedTaskForModal(task);
-      } else {
-        // Fallback: navigate if task not found in local state
-        router.push(`/dashboard/tasks?id=${taskId}`);
-      }
-    }
     setShowNotif(false);
+    if (!taskId) return;
+
+    // Try local state first
+    const localTask = state.tasks.find((t) => t.id === taskId);
+    if (localTask) {
+      setSelectedTaskForModal(localTask);
+      return;
+    }
+
+    // Fallback: fetch directly from Firestore
+    try {
+      const snap = await getDoc(doc(db, "tasks", taskId));
+      if (snap.exists()) {
+        setSelectedTaskForModal(snap.data() as Task);
+      } else {
+        // Task truly not found, navigate as last resort
+        router.push(`/dashboard/tasks`);
+      }
+    } catch {
+      router.push(`/dashboard/tasks`);
+    }
   };
 
   const title = PAGE_TITLES[pathname] ?? "Nero Ops";
