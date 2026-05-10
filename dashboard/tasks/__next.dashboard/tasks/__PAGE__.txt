@@ -1,9 +1,9 @@
 1:"$Sreact.fragment"
 2:I[47257,["/_next/static/chunks/0c4xcfy78d_u2.js","/_next/static/chunks/0gi0o-r7l2_47.js","/_next/static/chunks/0n4z.7yu76je-.js"],"ClientPageRoot"]
-3:I[81211,["/_next/static/chunks/0c4xcfy78d_u2.js","/_next/static/chunks/0gi0o-r7l2_47.js","/_next/static/chunks/0n4z.7yu76je-.js","/_next/static/chunks/122-27lpeh4sw.js","/_next/static/chunks/12_gktpilgfo-.js","/_next/static/chunks/0g5t12gw4w4b_.js","/_next/static/chunks/04q5ph8nazq~x.js","/_next/static/chunks/0_i85i0x47r_w.js"],"default"]
+3:I[81211,["/_next/static/chunks/0c4xcfy78d_u2.js","/_next/static/chunks/0gi0o-r7l2_47.js","/_next/static/chunks/0n4z.7yu76je-.js","/_next/static/chunks/0-u45yq7utoa2.js","/_next/static/chunks/0g5nykl53x5tb.js","/_next/static/chunks/0g5t12gw4w4b_.js","/_next/static/chunks/0kqhtkygij_hx.js","/_next/static/chunks/06xp~iodi0v9b.js"],"default"]
 6:I[97367,["/_next/static/chunks/0c4xcfy78d_u2.js","/_next/static/chunks/0gi0o-r7l2_47.js","/_next/static/chunks/0n4z.7yu76je-.js"],"OutletBoundary"]
 7:"$Sreact.suspense"
-0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/_next/static/chunks/04q5ph8nazq~x.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/0_i85i0x47r_w.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"ObmKV3RrHkxDVeq62dCI7"}
+0:{"rsc":["$","$1","c",{"children":[["$","$L2",null,{"Component":"$3","serverProvidedParams":{"searchParams":{},"params":{},"promises":["$@4","$@5"]}}],[["$","script","script-0",{"src":"/_next/static/chunks/0kqhtkygij_hx.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/06xp~iodi0v9b.js","async":true}]],["$","$L6",null,{"children":["$","$7",null,{"name":"Next.MetadataOutlet","children":"$@8"}]}]]}],"isPartial":false,"staleTime":300,"varyParams":null,"buildId":"WVCG8x10Y3d829Vlwd1Rn"}
 4:{}
 5:"$0:rsc:props:children:0:props:serverProvidedParams:params"
 8:null
