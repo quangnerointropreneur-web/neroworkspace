@@ -15,7 +15,10 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  FileSpreadsheet,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 const formatVND = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
@@ -41,18 +44,20 @@ export default function HRPage() {
   const [fPassword, setFPassword] = useState("");
   const [fFullName, setFFullName] = useState("");
   const [fDept, setFDept] = useState("");
-  const [fRole, setFRole] = useState<"admin" | "employee">("employee");
+  const [fRole, setFRole] = useState<"admin" | "assistant" | "employee">("employee");
   const [fBaseSalary, setFBaseSalary] = useState(0);
   const [fBonus, setFBonus] = useState(0);
   const [fPenalty, setFPenalty] = useState(0);
   const [fShiftStart, setFShiftStart] = useState("08:30");
   const [fShiftEnd, setFShiftEnd] = useState("17:30");
+  const [fBrandIds, setFBrandIds] = useState<string[]>([]);
 
   const openCreate = () => {
     setEditingUser(null);
     setFUsername(""); setFPassword(""); setFFullName(""); setFDept("");
     setFRole("employee"); setFBaseSalary(0); setFBonus(0); setFPenalty(0);
     setFShiftStart("08:30"); setFShiftEnd("17:30");
+    setFBrandIds([]);
     setShowModal(true);
   };
 
@@ -62,7 +67,12 @@ export default function HRPage() {
     setFDept(u.department ?? ""); setFRole(u.role);
     setFBaseSalary(u.baseSalary); setFBonus(u.bonus); setFPenalty(u.penalty);
     setFShiftStart(u.shiftStart ?? "08:30"); setFShiftEnd(u.shiftEnd ?? "17:30");
+    setFBrandIds(u.brandIds ?? []);
     setShowModal(true);
+  };
+
+  const toggleBrandId = (brandId: string) => {
+    setFBrandIds((prev) => prev.includes(brandId) ? prev.filter((id) => id !== brandId) : [...prev, brandId]);
   };
 
   const handleSave = () => {
@@ -78,6 +88,7 @@ export default function HRPage() {
       penalty: fPenalty,
       shiftStart: fShiftStart,
       shiftEnd: fShiftEnd,
+      brandIds: fRole === "admin" ? [] : fBrandIds,
       attendance: editingUser?.attendance ?? [],
     };
     if (editingUser) updateUser(editingUser.id, data);
@@ -110,6 +121,53 @@ export default function HRPage() {
 
   const calcIncome = (u: User) => u.baseSalary + u.bonus - u.penalty;
 
+  const exportToExcel = () => {
+    const data = state.users.map(user => {
+      const uid = user.id;
+      const myTasks = state.tasks.filter(t => t.picIds?.includes(uid) || t.picId === uid);
+      const checkins = state.checkIns.filter(c => c.userId === uid && c.date.startsWith(selectedMonth));
+      
+      const done = myTasks.filter(t => t.status === "done").length;
+      const cancelled = myTasks.filter(t => t.status === "cancelled").length;
+      const pending = myTasks.filter(t => ["todo", "inprogress", "review"].includes(t.status)).length;
+      const late = myTasks.filter(t => {
+        if (!t.deadline) return false;
+        if (t.status === "done") return t.completedAt ? t.completedAt > t.deadline : false;
+        return new Date().toISOString() > t.deadline;
+      }).length;
+
+      const att = user.attendance.find(a => a.month === selectedMonth);
+
+      return {
+        "Họ tên": user.fullName,
+        "Phòng ban": user.department || "N/A",
+        "Tháng": selectedMonth,
+        "Tổng Task": myTasks.length,
+        "Hoàn thành": done,
+        "Đã hủy": cancelled,
+        "Trễ deadline": late,
+        "Số ngày công": checkins.length,
+        "Đi muộn": checkins.filter(c => c.status === "late").length,
+        "Lương cứng": user.baseSalary,
+        "Thưởng": user.bonus,
+        "Phạt": user.penalty,
+        "Thực lĩnh": user.baseSalary + user.bonus - user.penalty
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "KPI_NhanSu");
+    
+    const maxWidths = Object.keys(data[0] || {}).map(key => {
+      const lengths = data.map(row => String(row[key as keyof typeof row]).length);
+      return Math.max(key.length, ...lengths) + 2;
+    });
+    ws["!cols"] = maxWidths.map(w => ({ wch: w }));
+
+    XLSX.writeFile(wb, `Chot_Luong_KPI_${selectedMonth}.xlsx`);
+  };
+
   if (currentUser?.role !== "admin") return null;
 
   return (
@@ -135,6 +193,12 @@ export default function HRPage() {
                 style={{ background: "none", border: "none", color: "var(--text-primary)", fontSize: 13, outline: "none", cursor: "pointer" }}
               />
             </div>
+            <button 
+              onClick={exportToExcel}
+              style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 10, background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", color: "#10b981", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+            >
+              <FileSpreadsheet size={15} /> Xuất Excel KPI
+            </button>
             <button onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}>
               <Plus size={15} /> Thêm nhân viên
             </button>
@@ -172,6 +236,7 @@ export default function HRPage() {
             const isExpanded = expandedId === u.id;
             const tasks = state.tasks.filter((t) => t.picId === u.id);
             const doneTasks = tasks.filter((t) => t.status === "done").length;
+            const scopedBrands = state.brands.filter((brand) => u.brandIds?.includes(brand.id));
 
             return (
               <div key={u.id}>
@@ -190,12 +255,33 @@ export default function HRPage() {
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: u.role === "admin" ? "linear-gradient(135deg, #3b82f6, #8b5cf6)" : "linear-gradient(135deg, #10b981, #059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "white", flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: u.role === "admin" ? "linear-gradient(135deg, #3b82f6, #8b5cf6)" : u.role === "assistant" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg, #10b981, #059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "white", flexShrink: 0 }}>
                       {u.fullName.split(" ").slice(-1)[0].charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{u.fullName}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>@{u.username} · {doneTasks}/{tasks.length} tasks</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                        @{u.username} · {u.role === "admin" ? "Quản trị" : u.role === "assistant" ? "Trợ lý" : "Nhân viên"}
+                      </div>
+                      {u.role !== "admin" && (
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                          {scopedBrands.length > 0 ? scopedBrands.map((brand) => (
+                            <span key={brand.id} style={{ fontSize: 10, color: brand.color, background: `${brand.color}14`, border: `1px solid ${brand.color}35`, borderRadius: 999, padding: "1px 7px", fontWeight: 700 }}>
+                              {brand.name}
+                            </span>
+                          )) : (
+                            <span style={{ fontSize: 10, color: "var(--text-muted)", background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 999, padding: "1px 7px" }}>
+                              Tat ca brand
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 10, display: "flex", gap: 8, marginTop: 2 }}>
+                        <span style={{ color: "var(--accent-green)" }}>Xong: {doneTasks}</span>
+                        <span style={{ color: "var(--accent-red)" }}>Hủy: {tasks.filter(t => t.status === "cancelled").length}</span>
+                        <span style={{ color: "#f59e0b" }}>Trễ: {tasks.filter(t => t.status !== "done" && t.deadline && new Date().toISOString() > t.deadline).length}</span>
+                        <span style={{ color: "var(--text-muted)" }}>Tổng: {tasks.length}</span>
+                      </div>
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{u.department ?? "—"}</div>
@@ -315,12 +401,45 @@ export default function HRPage() {
                 </div>
                 <div>
                   <label style={lbl}>Chức danh</label>
-                  <select value={fRole} onChange={(e) => setFRole(e.target.value as any)} style={{ ...inp, cursor: "pointer" }}>
+                  <select value={fRole} onChange={(e) => setFRole(e.target.value as User["role"])} style={{ ...inp, cursor: "pointer" }}>
                     <option value="employee">Nhân viên</option>
+                    <option value="assistant">Trợ lý</option>
                     <option value="admin">Quản trị viên</option>
                   </select>
                 </div>
               </div>
+              {fRole !== "admin" && (
+                <div>
+                  <label style={lbl}>Brand duoc xem</label>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>
+                    Chon 1 hoac nhieu brand. De trong neu tai khoan nay duoc xem tat ca brand.
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {state.brands.map((brand) => {
+                      const selected = fBrandIds.includes(brand.id);
+                      return (
+                        <button
+                          key={brand.id}
+                          type="button"
+                          onClick={() => toggleBrandId(brand.id)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 999,
+                            background: selected ? `${brand.color}18` : "var(--bg-secondary)",
+                            border: `1px solid ${selected ? `${brand.color}55` : "var(--border)"}`,
+                            color: selected ? brand.color : "var(--text-secondary)",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: selected ? 700 : 500,
+                          }}
+                        >
+                          {brand.name}{selected ? " ✓" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 <div>
                   <label style={lbl}>Lương cứng</label>

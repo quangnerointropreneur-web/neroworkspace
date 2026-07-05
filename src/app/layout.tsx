@@ -36,7 +36,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;1,400&family=Google+Sans+Display:wght@300;400;500;600&family=Anonymous+Pro:ital,wght@0,400;0,700;1,400&display=swap"
           rel="stylesheet"
         />
         <link rel="apple-touch-icon" href="/icon.png" />

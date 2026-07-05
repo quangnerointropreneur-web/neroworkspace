@@ -2,15 +2,16 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { Task, Brand, User, TaskStatus, SubTask } from "@/lib/types";
+import { Task, Brand, User, TaskStatus, SubTask, Project } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
-import { AlertCircle, GripVertical, Lock, CheckSquare, Square } from "lucide-react";
+import { AlertCircle, GripVertical, Lock, CheckSquare, Square, Rocket } from "lucide-react";
 
 const COLUMNS: { id: TaskStatus; label: string; color: string; accent: string }[] = [
   { id: "todo", label: "Chờ xử lý", color: "#6b7280", accent: "rgba(107,114,128,0.12)" },
   { id: "inprogress", label: "Đang thực hiện", color: "#3b82f6", accent: "rgba(59,130,246,0.12)" },
   { id: "review", label: "Chờ duyệt", color: "#f59e0b", accent: "rgba(245,158,11,0.12)" },
   { id: "done", label: "Hoàn thành", color: "#10b981", accent: "rgba(16,185,129,0.12)" },
+  { id: "cancelled", label: "Đã hủy", color: "#ef4444", accent: "rgba(239,68,68,0.12)" },
 ];
 const PRIORITY_COLOR: Record<string, string> = { low: "#6b7280", medium: "#f59e0b", high: "#ef4444" };
 
@@ -18,16 +19,17 @@ interface Props {
   tasks: Task[];
   brands: Brand[];
   users: User[];
+  projects: Project[];
   onTaskClick: (task: Task) => void;
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
   isAdmin: boolean;
   showHistory: boolean;
 }
 
-export default function TaskBoardView({ tasks, brands, users, onTaskClick, onStatusChange, isAdmin, showHistory }: Props) {
+export default function TaskBoardView({ tasks, brands, users, projects, onTaskClick, onStatusChange, isAdmin, showHistory }: Props) {
   const visibleColumns = useMemo(() => {
     if (showHistory) return COLUMNS;
-    return COLUMNS.filter((c) => c.id !== "done");
+    return COLUMNS.filter((c) => c.id !== "done" && c.id !== "cancelled");
   }, [showHistory]);
 
   const columns = useMemo(() => {
@@ -132,8 +134,8 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                             ref={drag.innerRef}
                             {...drag.draggableProps}
                             style={{
-                              background: dsnap.isDragging ? "var(--bg-hover)" : "var(--bg-card)",
-                              border: `1px solid ${dsnap.isDragging ? col.color + "55" : "var(--border)"}`,
+                              background: dsnap.isDragging ? "var(--bg-hover)" : (isOverdue ? "rgba(239,68,68,0.04)" : "var(--bg-card)"),
+                              border: `1px solid ${dsnap.isDragging ? col.color + "55" : (isOverdue ? "rgba(239,68,68,0.4)" : "var(--border)")}`,
                               borderRadius: 10,
                               overflow: "hidden",
                               boxShadow: dsnap.isDragging ? `0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px ${col.color}33` : "0 1px 3px rgba(0,0,0,0.1)",
@@ -152,15 +154,23 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                                 </div>
                                 <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.4, cursor: "pointer" }} onClick={() => onTaskClick(task)}>
                                   {task.title}
+                                  {isOverdue && <span style={{ marginLeft: 6, display: "inline-flex", alignItems: "center", gap: 2, padding: "2px 6px", borderRadius: 4, background: "#ef4444", color: "white", fontSize: 9, fontWeight: 800, textTransform: "uppercase", verticalAlign: "middle" }}>Quá hạn</span>}
                                 </div>
                               </div>
 
-                              {/* Brand badge */}
-                              {brand && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 5, background: `${brand.color}18`, border: `1px solid ${brand.color}44`, fontSize: 10, color: brand.color, fontWeight: 600, marginBottom: 8 }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: brand.color, display: "inline-block" }} /> {brand.name}
-                                </span>
-                              )}
+                              {/* Meta Tags */}
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                                {brand && (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 5, background: `${brand.color}18`, border: `1px solid ${brand.color}44`, fontSize: 10, color: brand.color, fontWeight: 600 }}>
+                                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: brand.color, display: "inline-block" }} /> {brand.name}
+                                  </span>
+                                )}
+                                {task.projectId && (
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 5, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)", fontSize: 10, color: "var(--accent-blue)", fontWeight: 700 }}>
+                                    <Rocket size={10} /> {projects.find(p => p.id === task.projectId)?.name || "Dự án"}
+                                  </span>
+                                )}
+                              </div>
 
                               {/* Sub-tasks inline */}
                               {task.subTasks.length > 0 && (
@@ -222,6 +232,7 @@ export default function TaskBoardView({ tasks, brands, users, onTaskClick, onSta
                                     <option value="inprogress">Đang thực hiện</option>
                                     <option value="review">Chờ duyệt</option>
                                     <option value="done">Hoàn thành</option>
+                                    <option value="cancelled">Đã hủy</option>
                                   </select>
                                   <div style={{ display: "flex", alignItems: "center" }}>
                                     {pics.slice(0, 2).map((p, i) => (

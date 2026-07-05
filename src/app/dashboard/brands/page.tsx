@@ -3,16 +3,13 @@
 import { useState, useEffect } from "react";
 import { useAuth, useData } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
-import { Brand, KPI } from "@/lib/types";
+import { Brand, BrandMonthlyPerformance, KPI } from "@/lib/types";
 import {
   Plus,
   Edit3,
   Trash2,
   X,
   Save,
-  TrendingUp,
-  Target,
-  DollarSign,
   BarChart3,
 } from "lucide-react";
 
@@ -30,6 +27,24 @@ const BRAND_COLORS = [
   "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b",
   "#ef4444", "#ec4899", "#06b6d4", "#84cc16",
 ];
+
+const currentMonthKey = () => new Date().toLocaleDateString("en-CA").slice(0, 7);
+
+const splitIntoThreePhases = (targetTotal: number) => {
+  const base = Math.floor(targetTotal / 3);
+  const rest = targetTotal - base * 3;
+  return [
+    { phase: 1 as const, target: base + rest, actual: 0 },
+    { phase: 2 as const, target: base, actual: 0 },
+    { phase: 3 as const, target: base, actual: 0 },
+  ];
+};
+
+const getPhasePct = (actual: number, target: number) =>
+  target > 0 ? Math.round((actual / target) * 100) : 0;
+
+const getMonthlyRecord = (brand: Brand, month: string) =>
+  (brand.monthlyPhases ?? []).find((item) => item.month === month);
 
 export default function BrandsPage() {
   const { currentUser } = useAuth();
@@ -56,6 +71,13 @@ export default function BrandsPage() {
   const [fKpiName, setFKpiName] = useState("");
   const [fKpiTarget, setFKpiTarget] = useState(0);
   const [fKpiCurrent, setFKpiCurrent] = useState(0);
+  const [showPhaseModal, setShowPhaseModal] = useState(false);
+  const [phaseBrand, setPhaseBrand] = useState<Brand | null>(null);
+  const [fMonth, setFMonth] = useState(currentMonthKey());
+  const [fTargetTotal, setFTargetTotal] = useState(0);
+  const [fPhaseActuals, setFPhaseActuals] = useState([0, 0, 0]);
+  const [fPhaseTargets, setFPhaseTargets] = useState([0, 0, 0]);
+  const [fPhaseNote, setFPhaseNote] = useState("");
   const [fKpiUnit, setFKpiUnit] = useState("VNĐ");
 
   const openCreateBrand = () => {
@@ -100,6 +122,51 @@ export default function BrandsPage() {
     setShowKpiModal(false);
   };
 
+  const openPhaseEditor = (brand: Brand, month = currentMonthKey()) => {
+    const record = getMonthlyRecord(brand, month);
+    const phases = record?.phases ?? splitIntoThreePhases(record?.targetTotal ?? 0);
+    setPhaseBrand(brand);
+    setFMonth(month);
+    setFTargetTotal(record?.targetTotal ?? 0);
+    setFPhaseTargets(phases.map((phase) => phase.target));
+    setFPhaseActuals(phases.map((phase) => phase.actual));
+    setFPhaseNote(record?.note ?? "");
+    setShowPhaseModal(true);
+  };
+
+  const updateTargetTotal = (value: number) => {
+    const phases = splitIntoThreePhases(value);
+    setFTargetTotal(value);
+    setFPhaseTargets(phases.map((phase) => phase.target));
+  };
+
+  const saveMonthlyPhase = () => {
+    if (!phaseBrand) return;
+    const now = new Date().toISOString();
+    const existing = getMonthlyRecord(phaseBrand, fMonth);
+    const record: BrandMonthlyPerformance = {
+      id: existing?.id ?? `phase-${Date.now()}`,
+      month: fMonth,
+      targetTotal: fTargetTotal,
+      actualTotal: fPhaseActuals.reduce((sum, value) => sum + value, 0),
+      phases: [0, 1, 2].map((index) => ({
+        phase: (index + 1) as 1 | 2 | 3,
+        target: fPhaseTargets[index] ?? 0,
+        actual: fPhaseActuals[index] ?? 0,
+      })),
+      note: fPhaseNote,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    const monthlyPhases = [
+      ...(phaseBrand.monthlyPhases ?? []).filter((item) => item.month !== fMonth),
+      record,
+    ].sort((a, b) => b.month.localeCompare(a.month));
+
+    updateBrand(phaseBrand.id, { monthlyPhases });
+    setShowPhaseModal(false);
+  };
+
   if (currentUser?.role !== "admin") return null;
 
   const inp: React.CSSProperties = {
@@ -134,6 +201,9 @@ export default function BrandsPage() {
             const brandTasks = state.tasks.filter((t) => t.brandId === brand.id);
             const doneTasks = brandTasks.filter((t) => t.status === "done").length;
             const taskPct = brandTasks.length > 0 ? Math.round((doneTasks / brandTasks.length) * 100) : 0;
+            const currentMonth = currentMonthKey();
+            const monthly = getMonthlyRecord(brand, currentMonth);
+            const monthlyPct = getPhasePct(monthly?.actualTotal ?? 0, monthly?.targetTotal ?? 0);
 
             return (
               <div
@@ -192,6 +262,42 @@ export default function BrandsPage() {
                       </div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>{doneTasks}/{brandTasks.length} tasks hoàn thành</div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Monthly phases */}
+                <div style={{ padding: "16px 22px", borderBottom: "1px solid var(--border)", background: "var(--bg-card)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)" }}>Phase tháng {currentMonth}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                        {monthly ? `${formatNumber(monthly.actualTotal, "VNÄ")} / ${formatNumber(monthly.targetTotal, "VNÄ")} (${monthlyPct}%)` : "Chưa nhập target tháng"}
+                      </div>
+                    </div>
+                    <button onClick={() => openPhaseEditor(brand, currentMonth)} style={{ padding: "7px 11px", borderRadius: 8, border: `1px solid ${brand.color}35`, background: `${brand.color}12`, color: brand.color, fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                      Nhập phase
+                    </button>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                    {(monthly?.phases ?? splitIntoThreePhases(0)).map((phase) => {
+                      const pct = getPhasePct(phase.actual, phase.target);
+                      const color = pct >= 100 ? "#10b981" : pct >= 70 ? "#f59e0b" : brand.color;
+                      return (
+                        <div key={phase.phase} style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 10, padding: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-secondary)" }}>Phase {phase.phase}</span>
+                            <span style={{ fontSize: 12, fontWeight: 900, color }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: 5, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: color }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 7 }}>
+                            {formatNumber(phase.actual, "VNÄ")} / {formatNumber(phase.target, "VNÄ")}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -344,6 +450,78 @@ export default function BrandsPage() {
                   <button onClick={handleSaveKpi} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 22px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", cursor: "pointer", fontSize: 14, fontWeight: 600 }}>
                     <Save size={14} /> {editingKpi ? "Cập nhật" : "Thêm KPI"}
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPhaseModal && phaseBrand && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 220, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.68)", backdropFilter: "blur(4px)", padding: 20 }} onClick={(e) => e.target === e.currentTarget && setShowPhaseModal(false)}>
+            <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 620, background: "var(--bg-card)", borderRadius: 20, border: "1px solid var(--border)", boxShadow: "0 32px 80px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+              <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)" }}>Phase KPI - {phaseBrand.name}</h3>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>Target tháng tự chia thành 3 phase, mỗi phase khoảng 10 ngày.</p>
+                </div>
+                <button onClick={() => setShowPhaseModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}><X size={18} /></button>
+              </div>
+
+              <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12 }}>
+                  <div>
+                    <label style={lbl}>Tháng</label>
+                    <input type="month" value={fMonth} onChange={(e) => openPhaseEditor(phaseBrand, e.target.value)} style={inp} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Target tổng tháng</label>
+                    <input type="number" value={fTargetTotal} onChange={(e) => updateTargetTotal(+e.target.value)} style={inp} />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                  {[0, 1, 2].map((index) => {
+                    const pct = getPhasePct(fPhaseActuals[index] ?? 0, fPhaseTargets[index] ?? 0);
+                    return (
+                      <div key={index} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12, background: "var(--bg-secondary)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 900, color: "var(--text-primary)" }}>Phase {index + 1}</div>
+                          <div style={{ fontSize: 12, fontWeight: 900, color: pct >= 100 ? "var(--accent-green)" : "var(--accent-blue)" }}>{pct}%</div>
+                        </div>
+                        <label style={lbl}>Target</label>
+                        <input
+                          type="number"
+                          value={fPhaseTargets[index] ?? 0}
+                          onChange={(e) => setFPhaseTargets((values) => values.map((value, i) => i === index ? +e.target.value : value))}
+                          style={{ ...inp, marginBottom: 10 }}
+                        />
+                        <label style={lbl}>Thực đạt</label>
+                        <input
+                          type="number"
+                          value={fPhaseActuals[index] ?? 0}
+                          onChange={(e) => setFPhaseActuals((values) => values.map((value, i) => i === index ? +e.target.value : value))}
+                          style={inp}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <label style={lbl}>Note</label>
+                  <textarea value={fPhaseNote} onChange={(e) => setFPhaseNote(e.target.value)} rows={3} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }} />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)", gap: 12 }}>
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                    Tổng thực đạt: <strong style={{ color: "var(--text-primary)" }}>{formatVND(fPhaseActuals.reduce((sum, value) => sum + value, 0))}</strong>
+                  </div>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button onClick={() => setShowPhaseModal(false)} style={{ padding: "10px 18px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer", fontSize: 13 }}>Hủy</button>
+                    <button onClick={saveMonthlyPhase} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, background: `linear-gradient(135deg, ${phaseBrand.color}, ${phaseBrand.color}cc)`, border: "none", color: "white", cursor: "pointer", fontSize: 14, fontWeight: 800 }}>
+                      <Save size={14} /> Lưu phase
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

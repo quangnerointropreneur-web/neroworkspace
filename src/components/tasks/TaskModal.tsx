@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useAuth, useData } from "@/context/AppContext";
 import { Task, SubTask, TaskStatus, TaskPriority, SubTaskStatus, User } from "@/lib/types";
+import { canAccessBrand, getVisibleBrands } from "@/lib/permissions";
 import { format, parseISO, isPast } from "date-fns";
 import {
   X, Edit3, Save, Trash2, Plus, CheckSquare, Square,
   ChevronDown, ChevronUp, AlertCircle, Users, Flag,
-  Calendar, Tag, Clock, MessageSquare, AtSign
+  Calendar, Tag, Clock, MessageSquare, AtSign, Image as ImageIcon, Rocket
 } from "lucide-react";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string }[] = [
@@ -15,6 +16,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string }[] = [
   { value: "inprogress", label: "Đang thực hiện", color: "#3b82f6" },
   { value: "review", label: "Chờ duyệt", color: "#f59e0b" },
   { value: "done", label: "Hoàn thành", color: "#10b981" },
+  { value: "cancelled", label: "Đã hủy", color: "#ef4444" },
 ];
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] = [
   { value: "low", label: "Thấp", color: "#6b7280" },
@@ -39,8 +41,15 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
   // Always use latest task state from context
   const task = state.tasks.find((t) => t.id === initialTask.id) ?? initialTask;
+  const taskBrandId = task.brandId;
+  const visibleBrands = useMemo(() => getVisibleBrands(state.brands, currentUser), [state.brands, currentUser]);
+  const visibleProjects = useMemo(
+    () => state.projects.filter((project) => canAccessBrand(currentUser, project.brandId)),
+    [state.projects, currentUser]
+  );
   const brand = state.brands.find((b) => b.id === task.brandId);
   const picUsers = (task.picIds ?? []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean) as typeof state.users;
+  const watcherUsers = (task.watcherIds ?? []).map((id) => state.users.find((u) => u.id === id)).filter(Boolean) as typeof state.users;
 
   // Edit mode for task header
   const [editingTask, setEditingTask] = useState(false);
@@ -50,8 +59,17 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   const [etPriority, setEtPriority] = useState<TaskPriority>(task.priority);
   const [etDeadline, setEtDeadline] = useState(task.deadline || "");
   const [etPicIds, setEtPicIds] = useState<string[]>(task.picIds ?? []);
+  const [etWatcherIds, setEtWatcherIds] = useState<string[]>(task.watcherIds ?? []);
   const [etBrandId, setEtBrandId] = useState(task.brandId);
-
+  const [etProjectId, setEtProjectId] = useState(task.projectId || "");
+  const usersForEditedBrand = useMemo(
+    () => state.users.filter((user) => canAccessBrand(user, etBrandId)),
+    [state.users, etBrandId]
+  );
+  const allowedEditedBrandUserIds = useMemo(
+    () => new Set(usersForEditedBrand.map((user) => user.id)),
+    [usersForEditedBrand]
+  );
   // Sub-task states
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [addingSubTask, setAddingSubTask] = useState(false);
@@ -81,26 +99,76 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
   // Discussion state
   const [taskMsg, setTaskMsg] = useState("");
   const [stMsg, setStMsg] = useState("");
+  const [taskImg, setTaskImg] = useState<string | null>(null);
+  const [stImg, setStImg] = useState<string | null>(null);
+  const taskFileRef = useRef<HTMLInputElement>(null);
+  const stFileRef = useRef<HTMLInputElement>(null);
   
   // Mentions State
   const [mentionQuery, setMentionQuery] = useState("");
   const [mentionActive, setMentionActive] = useState<{ type: "task" | "st"; subTaskId?: string } | null>(null);
   const filteredMentionUsers = useMemo(() => {
-    if (!mentionQuery) return state.users;
-    return state.users.filter(u => u.fullName.toLowerCase().includes(mentionQuery.toLowerCase()));
-  }, [mentionQuery, state.users]);
+    const brandUsers = state.users.filter((user) => canAccessBrand(user, taskBrandId));
+    if (!mentionQuery) return brandUsers;
+    return brandUsers.filter(u => u.fullName.toLowerCase().includes(mentionQuery.toLowerCase()));
+  }, [mentionQuery, state.users, taskBrandId]);
 
   const handleAddTaskComment = () => {
-    if (!taskMsg.trim() || !currentUser) return;
-    addTaskComment(task.id, { userId: currentUser.id, content: taskMsg.trim() });
+    if (!taskMsg.trim() && !taskImg) return;
+    if (!currentUser) return;
+    addTaskComment(task.id, { userId: currentUser.id, content: taskMsg.trim(), ...(taskImg ? { imageUrl: taskImg } : {}) });
     setTaskMsg("");
+    setTaskImg(null);
     setMentionActive(null);
   };
 
+  // Compress image client-side with Canvas — instant, no network upload needed
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const MAX = 900;
+          let w = img.width, h = img.height;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d")?.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.75));
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageSelect = async (file: File, type: "task" | "st") => {
+    const dataUrl = await compressImage(file);
+    if (type === "task") setTaskImg(dataUrl); else setStImg(dataUrl);
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent, type: "task" | "st") => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) await handleImageSelect(file, type);
+        break;
+      }
+    }
+  };
+
   const handleAddStComment = (stId: string) => {
-    if (!stMsg.trim() || !currentUser) return;
-    addSubTaskComment(task.id, stId, { userId: currentUser.id, content: stMsg.trim() });
+    if (!stMsg.trim() && !stImg) return;
+    if (!currentUser) return;
+    addSubTaskComment(task.id, stId, { userId: currentUser.id, content: stMsg.trim(), ...(stImg ? { imageUrl: stImg } : {}) });
     setStMsg("");
+    setStImg(null);
     setMentionActive(null);
   };
 
@@ -140,29 +208,32 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
     updateSubTask(task.id, stId, {
       content: estContent,
       deadline: estDeadline,
-      picIds: estPicIds,
+      picIds: estPicIds.filter((id) => allowedEditedBrandUserIds.has(id)),
       acceptanceNotes: estNotes,
       status: estStatus,
     });
     setEditingSubId(null);
   };
   const saveTask = () => {
+    if (!canAccessBrand(currentUser, etBrandId)) return;
     updateTask(task.id, { 
       title: etTitle, 
       description: etDesc, 
       status: etStatus, 
       priority: etPriority, 
       deadline: etDeadline, 
-      picIds: etPicIds, 
-      picId: etPicIds[0],
-      brandId: etBrandId 
+      picIds: etPicIds.filter((id) => allowedEditedBrandUserIds.has(id)), 
+      picId: etPicIds.find((id) => allowedEditedBrandUserIds.has(id)),
+      watcherIds: etWatcherIds.filter((id) => allowedEditedBrandUserIds.has(id)),
+      brandId: etBrandId,
+      projectId: etProjectId || "" 
     });
     setEditingTask(false);
   };
 
   const handleAddSubTask = () => {
     if (!newStContent.trim() || !newStDeadline) return;
-    addSubTask(task.id, { content: newStContent, deadline: newStDeadline, status: "pending", acceptanceNotes: "", picIds: newStPicIds });
+    addSubTask(task.id, { content: newStContent, deadline: newStDeadline, status: "pending", acceptanceNotes: "", picIds: newStPicIds.filter((id) => allowedEditedBrandUserIds.has(id)) });
     setNewStContent("");
     setNewStDeadline("");
     setNewStPicIds([]);
@@ -189,25 +260,26 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
     width: "100%",
   };
 
-  const UserPicker = ({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) => (
+  const UserPicker = ({ selected, onChange, disabledIds = [] }: { selected: string[]; onChange: (ids: string[]) => void; disabledIds?: string[] }) => (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {state.users.map((u) => {
+      {usersForEditedBrand.map((u) => {
         const sel = selected.includes(u.id);
+        const disabled = disabledIds.includes(u.id);
         return (
-          <button key={u.id} onClick={() => togglePic(u.id, selected, onChange)}
+          <button key={u.id} onClick={() => !disabled && togglePic(u.id, selected, onChange)} disabled={disabled}
             style={{
               display: "flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 7,
-              background: sel ? `${u.role === "admin" ? "#3b82f6" : "#10b981"}22` : "var(--bg-secondary)",
+              background: sel ? `${u.role === "admin" ? "#3b82f6" : "#10b981"}22` : disabled ? "rgba(156,163,175,0.08)" : "var(--bg-secondary)",
               border: `1px solid ${sel ? (u.role === "admin" ? "#3b82f620" : "#10b98120") : "var(--border)"}`,
-              color: sel ? (u.role === "admin" ? "var(--accent-blue)" : "var(--accent-green)") : "var(--text-secondary)",
-              cursor: "pointer", fontSize: 12, fontWeight: sel ? 700 : 400, transition: "all 0.15s",
+              color: sel ? (u.role === "admin" ? "var(--accent-blue)" : "var(--accent-green)") : disabled ? "var(--text-muted)" : "var(--text-secondary)",
+              cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, fontWeight: sel ? 700 : 400, transition: "all 0.15s", opacity: disabled ? 0.6 : 1,
             }}
           >
             <div style={{ width: 18, height: 18, borderRadius: 5, background: u.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "white" }}>
               {u.fullName.split(" ").slice(-1)[0].charAt(0)}
             </div>
             {u.fullName.split(" ").slice(-2).join(" ")}
-            {sel && " ✓"}
+            {disabled ? " Đang xử lý" : sel ? " ✓" : ""}
           </button>
         );
       })}
@@ -404,7 +476,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               <label style={lbl}><Tag size={12} style={{ display: "inline", marginRight: 4 }} />Brand</label>
               {editingTask ? (
                 <select value={etBrandId} onChange={(e) => setEtBrandId(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-                  {state.brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {visibleBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               ) : (
                 <span style={{ display: "inline-block", padding: "5px 12px", borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "var(--text-primary)", fontSize: 13, fontWeight: 600 }}>
@@ -417,10 +489,10 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
             <div>
               <label style={lbl}><Calendar size={12} style={{ display: "inline", marginRight: 4 }} />Hạn chót</label>
               {editingTask ? (
-                <input type="date" value={etDeadline} onChange={(e) => setEtDeadline(e.target.value)} style={inp} />
+                <input type="datetime-local" value={etDeadline} onChange={(e) => setEtDeadline(e.target.value)} style={inp} />
               ) : (
                 <span style={{ fontSize: 13, fontWeight: 600, color: isPast(parseISO(task.deadline || "")) && task.status !== "done" ? "#ef4444" : "var(--text-primary)" }}>
-                  {task.deadline ? format(parseISO(task.deadline), "dd/MM/yyyy") : "Chưa đặt"}
+                  {task.deadline ? (task.deadline.includes("T") ? format(parseISO(task.deadline), "HH:mm dd/MM/yyyy") : format(parseISO(task.deadline), "dd/MM/yyyy")) : "Chưa đặt"}
                 </span>
               )}
             </div>
@@ -430,11 +502,28 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
               <label style={lbl}><Clock size={12} style={{ display: "inline", marginRight: 4 }} />Bắt đầu</label>
               <span style={{ fontSize: 13, color: "var(--text-primary)" }}>{task.startDate ? format(parseISO(task.startDate), "dd/MM/yyyy") : "—"}</span>
             </div>
+
+            {/* Project */}
+            <div style={{ gridColumn: "span 2" }}>
+              <label style={lbl}><Rocket size={12} style={{ display: "inline", marginRight: 4 }} />Thuộc Dự án (Ngắn hạn)</label>
+              {editingTask ? (
+                <select value={etProjectId} onChange={(e) => setEtProjectId(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+                  <option value="">Không thuộc dự án nào</option>
+                  {visibleProjects.filter(p => p.brandId === etBrandId && p.status !== "archived").map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <span style={{ display: "inline-block", padding: "5px 12px", borderRadius: 8, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", color: "var(--accent-blue)", fontSize: 13, fontWeight: 700 }}>
+                  {visibleProjects.find(p => p.id === task.projectId)?.name || "Chưa gắn vào dự án"}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* PICs */}
           <div>
-            <label style={lbl}><Users size={12} style={{ display: "inline", marginRight: 4 }} />Người phụ trách (PIC)</label>
+            <label style={lbl}><Users size={12} style={{ display: "inline", marginRight: 4 }} />Người xử lý</label>
             {editingTask ? (
               <UserPicker selected={etPicIds} onChange={setEtPicIds} />
             ) : (
@@ -446,6 +535,35 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{u.fullName}</span>
                     <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.department}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Watchers */}
+          <div>
+            <label style={lbl}><Users size={12} style={{ display: "inline", marginRight: 4 }} />Người theo dõi</label>
+            {editingTask ? (
+              <>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 7 }}>
+                  Admin sẽ tự theo dõi và không bị tính là người xử lý.
+                </div>
+                <UserPicker
+                  selected={etWatcherIds}
+                  onChange={(ids) => setEtWatcherIds(ids.filter((id) => !etPicIds.includes(id)))}
+                  disabledIds={etPicIds}
+                />
+              </>
+            ) : (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {watcherUsers.length === 0 ? <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Admin tự theo dõi task này</span> : watcherUsers.map((u) => (
+                  <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: u.role === "admin" ? "linear-gradient(135deg,#3b82f6,#8b5cf6)" : u.role === "assistant" ? "linear-gradient(135deg,#f59e0b,#d97706)" : "linear-gradient(135deg,#10b981,#059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "white" }}>
+                      {u.fullName.split(" ").slice(-1)[0].charAt(0)}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{u.fullName}</span>
+                    <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{u.role === "admin" ? "Admin" : u.department}</span>
                   </div>
                 ))}
               </div>
@@ -492,11 +610,11 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Deadline</div>
-                    <input type="date" value={newStDeadline} onChange={(e) => setNewStDeadline(e.target.value)} style={inp} />
+                    <input type="datetime-local" value={newStDeadline} onChange={(e) => setNewStDeadline(e.target.value)} style={inp} />
                   </div>
                 </div>
                 <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>PIC</div>
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Người xử lý</div>
                   <UserPicker selected={newStPicIds} onChange={setNewStPicIds} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -534,7 +652,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                           <div style={{ display: "flex", gap: 8 }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Deadline</div>
-                              <input type="date" value={estDeadline} onChange={(e) => setEstDeadline(e.target.value)} style={inp} />
+                              <input type="datetime-local" value={estDeadline} onChange={(e) => setEstDeadline(e.target.value)} style={inp} />
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Trạng thái</div>
@@ -546,9 +664,9 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                             </div>
                           </div>
                           <div>
-                            <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>PIC</div>
-                            <UserPicker selected={estPicIds} onChange={setEstPicIds} />
-                          </div>
+                             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>Người xử lý</div>
+                             <UserPicker selected={estPicIds} onChange={setEstPicIds} />
+                           </div>
                           <div>
                             <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Ghi chú nghiệm thu</div>
                             <textarea value={estNotes} onChange={(e) => setEstNotes(e.target.value)} rows={2} style={{ ...inp, resize: "vertical", lineHeight: 1.5 }} placeholder="Ghi chú khi hoàn thành..." />
@@ -581,7 +699,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
                                 <span style={{ fontSize: 11, color: stOverdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: stOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 3 }}>
                                   <Calendar size={11} />
-                                  {st.deadline ? format(parseISO(st.deadline), "dd/MM/yyyy") : "—"}
+                                  {st.deadline ? (st.deadline.includes("T") ? format(parseISO(st.deadline), "HH:mm dd/MM/yyyy") : format(parseISO(st.deadline), "dd/MM/yyyy")) : "—"}
                                 </span>
                                 
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -619,6 +737,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                               {st.submissionNote && st.status !== "pending" && (
                                 <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(245,158,11,0.05)", border: "1px solid rgba(245,158,11,0.15)", borderRadius: 8, fontSize: 11, color: "#f59e0b", fontStyle: "italic" }}>
                                   Ghi chú nộp: {st.submissionNote}
+                                  {st.submittedAt && <span style={{ display: "block", fontSize: 10, marginTop: 4, color: "#d97706", fontWeight: 600 }}>Gửi lúc: {format(parseISO(st.submittedAt), "HH:mm dd/MM/yyyy")}</span>}
                                 </div>
                               )}
                               {st.acceptanceNotes && st.status === "done" && (
@@ -647,15 +766,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
                                 {isAdmin && st.status === "reviewing" && (
                                   <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
-                                    {approvingId === st.id ? (
-                                      <>
-                                        <textarea value={approveNote} onChange={e => setApproveNote(e.target.value)} placeholder="Ghi chú duyệt..." style={{ ...inp, fontSize: 12, padding: "8px 12px", minHeight: 60, marginBottom: 6 }} />
-                                        <div style={{ display: "flex", gap: 6 }}>
-                                          <button onClick={() => { approveSubTask(task.id, st.id, approveNote); setApprovingId(null); setApproveNote(""); }} style={{ flex: 1, padding: "6px 0", background: "var(--accent-green)", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✅ Xác nhận duyệt</button>
-                                          <button onClick={() => setApprovingId(null)} style={{ padding: "6px 12px", background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-secondary)", borderRadius: 8, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Hủy</button>
-                                        </div>
-                                      </>
-                                    ) : rejectingId === st.id ? (
+                                    {rejectingId === st.id ? (
                                       <>
                                         <textarea value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="Lý do làm lại..." style={{ ...inp, fontSize: 12, padding: "8px 12px", minHeight: 60, marginBottom: 6 }} />
                                         <div style={{ display: "flex", gap: 6 }}>
@@ -665,7 +776,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                                       </>
                                     ) : (
                                       <div style={{ display: "flex", gap: 6 }}>
-                                        <button onClick={() => { setApprovingId(st.id); setApproveNote(""); }} style={{ padding: "5px 12px", background: "rgba(16,185,129,0.1)", color: "var(--accent-green)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✅ Duyệt</button>
+                                        <button onClick={() => approveSubTask(task.id, st.id, "")} style={{ padding: "5px 12px", background: "rgba(16,185,129,0.1)", color: "var(--accent-green)", border: "1px solid rgba(16,185,129,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✅ Duyệt</button>
                                         <button onClick={() => { setRejectingId(st.id); setRejectNote(""); }} style={{ padding: "5px 12px", background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 8, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>↩️ Từ chối</button>
                                       </div>
                                     )}
@@ -695,7 +806,10 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                                         <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-primary)" }}>{cmter?.fullName}</span>
                                         <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{format(parseISO(c.createdAt), "HH:mm")}</span>
                                       </div>
-                                      <div style={{ padding: "6px 10px", background: isMe ? "rgba(59,130,246,0.15)" : "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12, color: "var(--text-primary)", maxWidth: "90%", lineHeight: 1.4 }}>{c.content}</div>
+                                      <div style={{ padding: c.imageUrl && !c.content ? "4px" : "6px 10px", background: isMe ? "rgba(59,130,246,0.15)" : "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12, color: "var(--text-primary)", maxWidth: "90%", lineHeight: 1.4 }}>
+                                        {c.content && <div>{c.content}</div>}
+                                        {c.imageUrl && <img src={c.imageUrl} alt="img" style={{ maxWidth: 200, maxHeight: 160, borderRadius: 6, marginTop: c.content ? 6 : 0, display: "block", cursor: "pointer" }} onClick={() => window.open(c.imageUrl, "_blank")} />}
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -703,15 +817,29 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                               </div>
                               <div style={{ position: "relative" }}>
                                 {mentionActive?.type === "st" && mentionActive.subTaskId === st.id && <MentionList />}
-                                <div style={{ display: "flex", gap: 6 }}>
-                                  <input 
-                                    value={stMsg} 
-                                    onChange={(e) => handleInputChange(e.target.value, "st", st.id)} 
-                                    placeholder="Nhập tin nhắn..." 
-                                    style={{ ...inp, fontSize: 12, padding: "6px 12px" }} 
-                                    onKeyDown={(e) => e.key === "Enter" && handleAddStComment(st.id)} 
-                                  />
-                                  <button onClick={() => handleAddStComment(st.id)} style={{ width: 32, borderRadius: 8, background: "var(--accent-blue)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ display: "flex", gap: 6 }}>
+                                  <input ref={stFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await handleImageSelect(f, "st"); e.target.value = ""; }} />
+                                  <div style={{ position: "relative", flex: 1 }}>
+                                    {mentionActive?.type === "st" && mentionActive.subTaskId === st.id && <MentionList />}
+                                    {stImg && (
+                                      <div style={{ position: "relative", marginBottom: 6 }}>
+                                        <img src={stImg} alt="preview" style={{ maxWidth: "100%", maxHeight: 120, borderRadius: 8, border: "1px solid var(--border)" }} />
+                                        <button onClick={() => setStImg(null)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>×</button>
+                                      </div>
+                                    )}
+                                    <input 
+                                      value={stMsg} 
+                                      onChange={(e) => handleInputChange(e.target.value, "st", st.id)} 
+                                      placeholder="Nhập tin nhắn... (Ctrl+V để dán ảnh)" 
+                                      style={{ ...inp, fontSize: 12, padding: "6px 12px" }} 
+                                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleAddStComment(st.id)} 
+                                      onPaste={(e) => handlePaste(e, "st")}
+                                    />
+                                  </div>
+                                  <button onClick={() => stFileRef.current?.click()} style={{ width: 32, borderRadius: 8, background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <ImageIcon size={14} />
+                                  </button>
+                                  <button onClick={() => handleAddStComment(st.id)} disabled={!stMsg.trim() && !stImg} style={{ width: 32, borderRadius: 8, background: "var(--accent-blue)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     <Plus size={16} />
                                   </button>
                                 </div>
@@ -750,7 +878,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                       <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{format(parseISO(c.createdAt), "HH:mm dd/MM")}</span>
                     </div>
                     <div style={{ 
-                      padding: "10px 14px", 
+                      padding: c.imageUrl && !c.content ? "4px" : "10px 14px", 
                       borderRadius: 14, 
                       borderTopRightRadius: isMe ? 2 : 14,
                       borderTopLeftRadius: isMe ? 14 : 2,
@@ -762,7 +890,8 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                       maxWidth: "85%",
                       boxShadow: "0 2px 5px rgba(0,0,0,0.06)"
                     }}>
-                      {c.content}
+                      {c.content && <div>{c.content}</div>}
+                      {c.imageUrl && <img src={c.imageUrl} alt="img" style={{ maxWidth: 260, maxHeight: 200, borderRadius: 8, marginTop: c.content ? 8 : 0, display: "block", cursor: "pointer" }} onClick={() => window.open(c.imageUrl, "_blank")} />}
                     </div>
                   </div>
                 );
@@ -777,18 +906,33 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
             <div style={{ position: "relative" }}>
               {mentionActive?.type === "task" && <MentionList />}
+              <input ref={taskFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => { const f = e.target.files?.[0]; if (f) await handleImageSelect(f, "task"); e.target.value = ""; }} />
+              {taskImg && (
+                <div style={{ position: "relative", marginBottom: 8 }}>
+                  <img src={taskImg} alt="preview" style={{ maxWidth: "100%", maxHeight: 140, borderRadius: 10, border: "1px solid var(--border)" }} />
+                  <button onClick={() => setTaskImg(null)} style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(0,0,0,0.65)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>×</button>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 10 }}>
                 <input 
                   value={taskMsg} 
                   onChange={(e) => handleInputChange(e.target.value, "task")} 
-                  placeholder="Nhập nội dung thảo luận..." 
+                  placeholder="Nhập nội dung... (Ctrl+V để dán ảnh)" 
                   style={{ ...inp, padding: "12px 16px", borderRadius: 12 }} 
-                  onKeyDown={(e) => e.key === "Enter" && handleAddTaskComment()}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleAddTaskComment()}
+                  onPaste={(e) => handlePaste(e, "task")}
                 />
+                <button
+                  onClick={() => taskFileRef.current?.click()}
+                  title="Đính kèm ảnh"
+                  style={{ width: 46, borderRadius: 12, background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                >
+                  <ImageIcon size={16} />
+                </button>
                 <button 
                   onClick={handleAddTaskComment} 
-                  disabled={!taskMsg.trim()}
-                  style={{ padding: "0 22px", borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(59,130,246,0.3)", opacity: !taskMsg.trim() ? 0.6 : 1 }}
+                  disabled={!taskMsg.trim() && !taskImg}
+                  style={{ padding: "0 22px", borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(59,130,246,0.3)", opacity: (!taskMsg.trim() && !taskImg) ? 0.6 : 1, flexShrink: 0 }}
                 >
                   Gửi
                 </button>

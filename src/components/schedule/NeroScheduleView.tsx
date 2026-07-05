@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth, useData } from "@/context/AppContext";
 import { ScheduleSlot } from "@/lib/types";
 import {
@@ -28,11 +29,12 @@ function getMonday(date: Date): Date {
 }
 
 export default function NeroScheduleView() {
+  const router = useRouter();
   const { currentUser } = useAuth();
   const { state, addScheduleSlot, updateScheduleSlot, deleteScheduleSlot, confirmBooking, rejectBooking } = useData();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<"month" | "week">("month");
+  const [view, setView] = useState<"month" | "week" | "timeline">("week");
 
   const [selectedIdx, setSelectedIdx] = useState(() => {
     const day = new Date().getDay();
@@ -83,6 +85,35 @@ export default function NeroScheduleView() {
   const pendingBookings = visibleSlots.filter((s) => s.bookingStatus === "pending");
   const selectedDate = format(mobileWeekDays[selectedIdx], "yyyy-MM-dd");
   const daySlots = state.schedules.filter((s) => s.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // Combined timeline items
+  const timelineItems = useMemo(() => {
+    const slots = state.schedules.filter(s => s.date === selectedDate).map(s => ({
+      id: s.id,
+      time: s.startTime,
+      endTime: s.endTime,
+      title: s.title,
+      type: 'slot' as const,
+      color: s.type === 'busy' ? '#ef4444' : '#3b82f6',
+      data: s
+    }));
+
+    const tasks = state.tasks.filter(t => t.deadline === selectedDate).map(t => ({
+      id: t.id,
+      time: "Deadline",
+      endTime: "",
+      title: t.title,
+      type: 'task' as const,
+      color: '#8b5cf6',
+      data: t
+    }));
+
+    return [...slots, ...tasks].sort((a, b) => {
+      if (a.time === "Deadline") return 1;
+      if (b.time === "Deadline") return -1;
+      return a.time.localeCompare(b.time);
+    });
+  }, [state.schedules, state.tasks, selectedDate]);
 
   const goBack = () => {
     if (view === "month") setCurrentDate(subMonths(currentDate, 1));
@@ -275,9 +306,9 @@ export default function NeroScheduleView() {
         
         <div style={{ display: "flex", gap: 6 }}>
           <div style={{ display: "flex", background: "var(--bg-secondary)", borderRadius: 10, padding: 4 }}>
-            {(["month", "week"] as const).map((v) => (
+            {(["month", "week", "timeline"] as const).map((v) => (
               <button key={v} onClick={() => setView(v)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all 0.2s", background: view === v ? "var(--bg-card)" : "transparent", color: view === v ? "var(--accent-blue)" : "var(--text-secondary)", boxShadow: view === v ? "0 2px 6px rgba(0,0,0,0.05)" : "none" }}>
-                {v === "month" ? "Tháng" : "Tuần"}
+                {v === "month" ? "Tháng" : v === "week" ? "Tuần" : "Timeline"}
               </button>
             ))}
           </div>
@@ -368,50 +399,170 @@ export default function NeroScheduleView() {
         </button>
       </div>
 
-      {/* Desktop: Grid View (Month / Week) */}
-      <div className="hidden lg:grid grid-cols-7 gap-px overflow-hidden rounded-2xl border border-[var(--border)]" style={{ background: "var(--border)" }}>
-        {/* Header Days */}
-        {DAY_LABELS.map((label) => (
-          <div key={label} style={{ background: "var(--bg-secondary)", padding: "10px 0", textAlign: "center", fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            {label}
-          </div>
-        ))}
-        {/* Body Cells */}
-        {days.map((day, i) => {
-          const dayStr = format(day, "yyyy-MM-dd");
-          const slots = visibleSlots.filter((s) => s.date === dayStr);
-          const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
-          const isCurrentMonth = view === "week" || isSameMonth(day, currentDate);
-          
-          return (
-            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 6px", background: isToday ? "rgba(59,130,246,0.04)" : "var(--bg-card)", minHeight: view === "month" ? 100 : 200, opacity: isCurrentMonth ? 1 : 0.4 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                <div style={{ width: 22, height: 22, borderRadius: "50%", background: isToday ? "var(--accent-blue)" : "transparent", color: isToday ? "white" : "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>
-                  {format(day, "d")}
-                </div>
-                {(view === "week" || (isCurrentMonth && isToday)) && (
-                   <button onClick={() => openAdd(dayStr)} style={{ width: 22, height: 22, borderRadius: 6, background: "transparent", border: "1px dashed rgba(59,130,246,0.3)", color: "var(--accent-blue)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", opacity: 0.6 }} title="Thêm slot">
-                     <Plus size={11} />
-                   </button>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, overflowY: "auto" }}>
-                {slots.slice(0, view === "month" ? 4 : 10).map((slot) => (
-                  <SlotCard 
-                    key={slot.id} 
-                    slot={slot} 
-                    isCompact={view === "month"} 
-                    isGrid={view === "week"} 
-                  />
-                ))}
-                {view === "month" && slots.length > 4 && (
-                  <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-secondary)", textAlign: "center", padding: "2px 0", cursor: "pointer" }} onClick={() => setView("week")}>+{slots.length - 4} nữa</div>
-                )}
-              </div>
+      {/* Desktop: Timeline View (New) */}
+      {view === "timeline" && (
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 24, padding: 32 }}>
+          <div style={{ display: "flex", gap: 40 }}>
+            {/* Day Selector Sidebar */}
+            <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+              {mobileWeekDays.map((day, i) => {
+                const dayStr = format(day, "yyyy-MM-dd");
+                const isSel = selectedIdx === i;
+                return (
+                  <button 
+                    key={i} 
+                    onClick={() => setSelectedIdx(i)}
+                    style={{
+                      padding: "16px", borderRadius: 16, border: "1px solid",
+                      borderColor: isSel ? "var(--accent-blue)" : "var(--border)",
+                      background: isSel ? "rgba(59,130,246,0.08)" : "transparent",
+                      color: isSel ? "var(--accent-blue)" : "var(--text-secondary)",
+                      textAlign: "left", cursor: "pointer", transition: "all 0.2s",
+                      display: "flex", justifyContent: "space-between", alignItems: "center"
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", opacity: 0.6 }}>{DAY_LABELS[i]}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800 }}>{format(day, "dd/MM")}</div>
+                    </div>
+                    {isSel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />}
+                  </button>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
+
+            {/* Timeline Area */}
+            <div style={{ flex: 1, position: "relative", paddingLeft: 20, borderLeft: "2px solid var(--border)" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", marginBottom: 24 }}>
+                Lộ trình {DAY_FULL[selectedIdx]}, {format(mobileWeekDays[selectedIdx], "dd/MM/yyyy")}
+              </h2>
+
+              {timelineItems.length === 0 ? (
+                <div style={{ padding: "60px 0", textAlign: "center", border: "2px dashed var(--border)", borderRadius: 20, opacity: 0.5 }}>
+                  <CalendarDays size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
+                  <p style={{ fontSize: 15, fontWeight: 700 }}>Chưa có sự kiện nào trong lộ trình hôm nay</p>
+                  <button onClick={() => openAdd()} style={{ marginTop: 12, color: "var(--accent-blue)", background: "none", border: "none", fontWeight: 700, cursor: "pointer" }}>+ Thêm lịch mới</button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  {timelineItems.map((item, idx) => (
+                    <div key={item.id} style={{ display: "flex", gap: 20, position: "relative" }}>
+                      {/* Time Marker */}
+                      <div style={{ width: 80, flexShrink: 0, textAlign: "right", paddingTop: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: item.color }}>{item.time}</div>
+                        {item.endTime && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>đến {item.endTime}</div>}
+                      </div>
+
+                      {/* Connection Dot */}
+                      <div style={{ 
+                        position: "absolute", left: -26, top: 18, width: 10, height: 10, borderRadius: "50%", 
+                        background: item.color, border: "3px solid var(--bg-card)", boxShadow: `0 0 0 2px ${item.color}33` 
+                      }} />
+
+                      {/* Content Card */}
+                      <div style={{ 
+                        flex: 1, background: "var(--bg-secondary)", borderRadius: 20, padding: 20, 
+                        border: "1px solid var(--border)", boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
+                        display: "flex", justifyContent: "space-between", alignItems: "center"
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                           <div style={{ 
+                             width: 44, height: 44, borderRadius: 12, background: `${item.color}15`, color: item.color, 
+                             display: "flex", alignItems: "center", justifyContent: "center" 
+                           }}>
+                             {item.type === 'slot' ? <Clock size={20} /> : <Check size={20} />}
+                           </div>
+                           <div>
+                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.05em", color: item.color, background: `${item.color}15`, padding: "2px 8px", borderRadius: 6 }}>
+                                  {item.type === 'slot' ? (item.data as ScheduleSlot).type : 'TASK'}
+                                </span>
+                                {item.type === 'slot' && (item.data as ScheduleSlot).bookingStatus === 'confirmed' && (
+                                  <span style={{ fontSize: 10, fontWeight: 900, background: "rgba(16,185,129,0.15)", color: "#10b981", padding: "2px 8px", borderRadius: 6 }}>ĐÃ XÁC NHẬN</span>
+                                )}
+                             </div>
+                             <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>{item.title}</h3>
+                             {item.type === 'slot' && (item.data as ScheduleSlot).description && (
+                               <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4, margin: 0 }}>{(item.data as ScheduleSlot).description}</p>
+                             )}
+                           </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8 }}>
+                           {item.type === 'slot' ? (
+                             <>
+                               <button onClick={() => openEdit(item.data as ScheduleSlot)} style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Edit3 size={14} /></button>
+                               <button onClick={() => deleteScheduleSlot(item.id)} style={{ width: 32, height: 32, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-card)", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Trash2 size={14} /></button>
+                             </>
+                           ) : (
+                             <button 
+                              onClick={() => router.push(`/dashboard/tasks?taskId=${item.id}`)}
+                              style={{ 
+                                fontSize: 12, fontWeight: 700, color: "var(--accent-blue)", 
+                                background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)",
+                                padding: "8px 16px", borderRadius: 10, cursor: "pointer" 
+                              }}
+                             >
+                               Xem chi tiết
+                             </button>
+                           )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Desktop: Grid View (Month / Week) */}
+      {(view === "month" || view === "week") && (
+        <div className="hidden lg:grid grid-cols-7 gap-px overflow-hidden rounded-2xl border border-[var(--border)]" style={{ background: "var(--border)" }}>
+          {/* Header Days */}
+          {DAY_LABELS.map((label) => (
+            <div key={label} style={{ background: "var(--bg-secondary)", padding: "10px 0", textAlign: "center", fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {label}
+            </div>
+          ))}
+          {/* Body Cells */}
+          {days.map((day, i) => {
+            const dayStr = format(day, "yyyy-MM-dd");
+            const slots = visibleSlots.filter((s) => s.date === dayStr);
+            const isToday = format(new Date(), "yyyy-MM-dd") === dayStr;
+            const isCurrentMonth = view === "week" || isSameMonth(day, currentDate);
+            
+            return (
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "4px 6px", background: isToday ? "rgba(59,130,246,0.04)" : "var(--bg-card)", minHeight: view === "month" ? 100 : 200, opacity: isCurrentMonth ? 1 : 0.4 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: isToday ? "var(--accent-blue)" : "transparent", color: isToday ? "white" : "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>
+                    {format(day, "d")}
+                  </div>
+                  {(view === "week" || (isCurrentMonth && isToday)) && (
+                    <button onClick={() => openAdd(dayStr)} style={{ width: 22, height: 22, borderRadius: 6, background: "transparent", border: "1px dashed rgba(59,130,246,0.3)", color: "var(--accent-blue)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", opacity: 0.6 }} title="Thêm slot">
+                      <Plus size={11} />
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, overflowY: "auto" }}>
+                  {slots.slice(0, view === "month" ? 4 : 10).map((slot) => (
+                    <SlotCard 
+                      key={slot.id} 
+                      slot={slot} 
+                      isCompact={view === "month"} 
+                      isGrid={view === "week"} 
+                    />
+                  ))}
+                  {view === "month" && slots.length > 4 && (
+                    <div style={{ fontSize: 9, fontWeight: 800, color: "var(--text-secondary)", textAlign: "center", padding: "2px 0", cursor: "pointer" }} onClick={() => setView("week")}>+{slots.length - 4} nữa</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Add/Edit Slot Modal */}
       {showModal && (

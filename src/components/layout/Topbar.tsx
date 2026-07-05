@@ -8,10 +8,15 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { vi } from "date-fns/locale";
 import TaskModal from "@/components/tasks/TaskModal";
 import { Task } from "@/lib/types";
+import { canAccessBrand } from "@/lib/permissions";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
 const PAGE_TITLES: Record<string, string> = {
+  "/dashboard/contacts": "Khách hàng",
+  "/dashboard/pipeline": "Phễu bán hàng",
+  "/dashboard/activity": "Hoạt động CRM",
+  "/dashboard/crm-report": "Báo cáo CRM",
   "/dashboard": "Tổng quan",
   "/dashboard/tasks": "Quản lý Công việc",
   "/dashboard/hr": "Quản lý Nhân sự",
@@ -71,7 +76,8 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
 
   const searchResults = searchQuery.trim().length >= 2
     ? state.tasks.filter((t) => {
-        const isVisible = currentUser?.role === "admin" || t.picIds?.includes(currentUser?.id ?? "");
+        const uid = currentUser?.id ?? "";
+        const isVisible = canAccessBrand(currentUser, t.brandId) && (currentUser?.role === "admin" || t.picIds?.includes(uid) || t.watcherIds?.includes(uid));
         return isVisible && (
           t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           t.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -100,7 +106,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     if (!taskId) return;
 
     // Try local state first
-    const localTask = state.tasks.find((t) => t.id === taskId);
+    const localTask = state.tasks.find((t) => t.id === taskId && canAccessBrand(currentUser, t.brandId));
     if (localTask) {
       setSelectedTaskForModal(localTask);
       return;
@@ -110,7 +116,12 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     try {
       const snap = await getDoc(doc(db, "tasks", taskId));
       if (snap.exists()) {
-        setSelectedTaskForModal(snap.data() as Task);
+        const fetchedTask = snap.data() as Task;
+        if (canAccessBrand(currentUser, fetchedTask.brandId)) {
+          setSelectedTaskForModal(fetchedTask);
+        } else {
+          router.push(`/dashboard/tasks`);
+        }
       } else {
         // Task truly not found, navigate as last resort
         router.push(`/dashboard/tasks`);
@@ -128,8 +139,8 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     <>
       <header
         style={{
-          height: 60,
-          background: "var(--bg-card)",
+          height: 56,
+          background: "var(--bg-secondary)",
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
@@ -140,24 +151,31 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           top: 0,
           zIndex: 100,
           flexShrink: 0,
+          boxShadow: "0 1px 0 var(--border)",
         }}
       >
         {isMobile && (
           <button
             onClick={onMenuClick}
             style={{ 
-              width: 36, height: 36, borderRadius: 10, background: "var(--bg-secondary)", 
-              border: "1px solid var(--border)", display: "flex", alignItems: "center", 
-              justifyContent: "center", cursor: "pointer", color: "var(--text-primary)" 
+              width: 36, height: 36, borderRadius: 8,
+              background: "transparent",
+              border: "1px solid var(--border)",
+              display: "flex", alignItems: "center",
+              justifyContent: "center", cursor: "pointer",
+              color: "var(--text-muted)",
+              transition: "all 0.15s"
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
           >
-            <Menu size={20} />
+            <Menu size={18} />
           </button>
         )}
 
         {/* Page title */}
         {!isMobile && (
-          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginRight: "auto" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", marginRight: "auto", letterSpacing: "-0.01em" }}>
             {title}
           </span>
         )}
@@ -166,27 +184,27 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
         <button
           onClick={() => setShowSearch(true)}
           style={{
-            display: "flex",
-            alignItems: "center",
+            display: "flex", alignItems: "center",
             justifyContent: isMobile ? "center" : "flex-start",
-            gap: 8,
-            padding: "6px 14px",
-            borderRadius: 9,
-            background: "var(--bg-secondary)",
+            gap: 8, padding: "6px 12px",
+            borderRadius: 8,
+            background: "var(--bg-hover)",
             border: "1px solid var(--border)",
             color: "var(--text-muted)",
-            cursor: "pointer",
-            fontSize: 13,
+            cursor: "pointer", fontSize: 13,
             minWidth: isMobile ? 36 : 160,
             width: isMobile ? 36 : "auto",
-            marginLeft: isMobile ? "auto" : 0
+            marginLeft: isMobile ? "auto" : 0,
+            transition: "all 0.15s ease",
           }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent-blue)"; e.currentTarget.style.color = "var(--text-secondary)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-muted)"; }}
         >
           <Search size={14} />
           {!isMobile && (
             <>
               <span>Tìm kiếm...</span>
-              <span style={{ marginLeft: "auto", fontSize: 10, background: "var(--border)", borderRadius: 4, padding: "1px 6px" }}>Ctrl+K</span>
+              <span style={{ marginLeft: "auto", fontSize: 10, background: "var(--border)", borderRadius: 6, padding: "1px 6px", color: "var(--text-muted)" }}>Ctrl+K</span>
             </>
           )}
         </button>
@@ -196,20 +214,17 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           onClick={toggleTheme}
           title={theme === "dark" ? "Chuyển sang sáng" : "Chuyển sang tối"}
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: "var(--bg-secondary)",
+            width: 36, height: 36, borderRadius: 8,
+            background: "transparent",
             border: "1px solid var(--border)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            transition: "all 0.2s",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", color: "var(--text-muted)",
+            transition: "all 0.15s ease",
           }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "var(--border-strong)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
         >
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
         {/* Notifications */}
@@ -217,18 +232,17 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <button
             onClick={() => setShowNotif((v) => !v)}
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "var(--bg-secondary)",
-              border: `1px solid ${showNotif ? "var(--accent-blue)" : "var(--border)"}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              width: 36, height: 36, borderRadius: 8,
+              background: showNotif ? "var(--accent-blue-light)" : "transparent",
+              border: `1px solid ${showNotif ? "var(--border-accent)" : "var(--border)"}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
               cursor: "pointer",
-              color: showNotif ? "var(--accent-blue)" : "var(--text-secondary)",
+              color: showNotif ? "var(--accent-blue)" : "var(--text-muted)",
               position: "relative",
+              transition: "all 0.15s ease",
             }}
+            onMouseEnter={e => { if (!showNotif) { e.currentTarget.style.background = "var(--bg-hover)"; e.currentTarget.style.color = "var(--text-primary)"; e.currentTarget.style.borderColor = "var(--border-strong)"; } }}
+            onMouseLeave={e => { if (!showNotif) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border)"; } }}
           >
             <Bell size={16} />
             {unreadCount > 0 && (
@@ -260,14 +274,12 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
             <div
               className="animate-slideDown"
               style={{
-                position: "absolute",
-                top: "calc(100% + 10px)",
-                right: 0,
+                position: "absolute", top: "calc(100% + 8px)", right: 0,
                 width: 360,
                 background: "var(--bg-card)",
                 border: "1px solid var(--border)",
-                borderRadius: 14,
-                boxShadow: "0 20px 60px var(--shadow)",
+                borderRadius: 12,
+                boxShadow: "var(--shadow-lg)",
                 overflow: "hidden",
                 zIndex: 200,
               }}
@@ -330,15 +342,20 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
 
         {/* Avatar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => setShowProfile(true)}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 8px", borderRadius: 8, transition: "background 0.15s" }}
+          onClick={() => setShowProfile(true)}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--bg-hover)"}
+          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+        >
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2 }}>{currentUser?.fullName.split(" ").slice(-2).join(" ")}</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{isAdmin ? "Quản trị viên" : currentUser?.department}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.2 }}>{currentUser?.fullName.split(" ").slice(-2).join(" ")}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{isAdmin ? "Administrator" : currentUser?.department}</div>
           </div>
           {currentUser?.avatar ? (
-            <img src={currentUser.avatar} alt="avatar" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover" }} />
+            <img src={currentUser.avatar} alt="avatar" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", border: "1px solid var(--border)" }} />
           ) : (
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: isAdmin ? "linear-gradient(135deg, #3b82f6, #8b5cf6)" : "linear-gradient(135deg, #10b981, #059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "white" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: isAdmin ? "linear-gradient(135deg, #3B82F6, #8B5CF6)" : "linear-gradient(135deg, #16A34A, #22C55E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: "white" }}>
               {initials}
             </div>
           )}
@@ -348,10 +365,10 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
       {/* Profile Modal */}
       {showProfile && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)" }}
+          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(17,24,39,0.4)", backdropFilter: "blur(3px)" }}
           onClick={(e) => e.target === e.currentTarget && setShowProfile(false)}
         >
-          <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 400, background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 32px 80px var(--shadow)", overflow: "hidden" }}>
+          <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 400, background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)" }}>Hồ sơ cá nhân</h3>
               <button onClick={() => setShowProfile(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
@@ -384,10 +401,10 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
       {/* Search Modal */}
       {showSearch && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 80, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+          style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 72, background: "rgba(17,24,39,0.4)", backdropFilter: "blur(3px)" }}
           onClick={(e) => e.target === e.currentTarget && setShowSearch(false)}
         >
-          <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 580, background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border)", boxShadow: "0 32px 80px var(--shadow)", overflow: "hidden" }}>
+          <div className="animate-scaleIn" style={{ width: "100%", maxWidth: 560, background: "var(--bg-card)", borderRadius: 14, border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
             {/* Search input */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: searchQuery ? "1px solid var(--border)" : "none" }}>
               <Search size={18} color="var(--accent-blue)" />

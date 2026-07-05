@@ -8,15 +8,17 @@ import { vi } from "date-fns/locale";
 import {
   BarChart2, Users, Calendar, Clock, CheckCircle, TrendingUp,
   AlertCircle, ChevronDown, ChevronUp, CheckSquare, Square,
+  Download, FileSpreadsheet, Filter,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import TaskModal from "@/components/tasks/TaskModal";
 import { Task } from "@/lib/types";
 
 const STATUS_COLOR: Record<string, string> = {
-  todo: "#6b7280", inprogress: "#3b82f6", review: "#f59e0b", done: "#10b981",
+  todo: "#6b7280", inprogress: "#3b82f6", review: "#f59e0b", done: "#10b981", cancelled: "#ef4444",
 };
 const STATUS_LABELS: Record<string, string> = {
-  todo: "Chờ xử lý", inprogress: "Đang thực hiện", review: "Chờ duyệt", done: "Hoàn thành",
+  todo: "Chờ xử lý", inprogress: "Đang thực hiện", review: "Chờ duyệt", done: "Hoàn thành", cancelled: "Đã hủy",
 };
 const CHECKIN_STATUS: Record<string, { label: string; color: string }> = {
   present: { label: "Đúng giờ", color: "var(--accent-green)" },
@@ -63,16 +65,42 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
     state.users.map((user) => {
       const uid = user.id;
       const myTasks = state.tasks.filter((t) => t.picIds?.includes(uid) || t.picId === uid);
+      
+      // Filter tasks within selected period (based on deadline or createdAt or completedAt)
+      // For KPI report, we usually look at tasks that were active or completed in the period.
+      // But for simplicity, we'll follow the same isMatchDate logic if applicable.
+      const periodTasks = myTasks.filter(t => {
+        if (filterMode === "month") return t.createdAt.startsWith(selectedMonth) || (t.completedAt && t.completedAt.startsWith(selectedMonth));
+        return t.createdAt.startsWith(selectedDay) || (t.completedAt && t.completedAt.startsWith(selectedDay));
+      });
+
       const mySubTasks = state.tasks.flatMap((t) =>
         t.subTasks.filter((st) => st.picIds?.includes(uid)).map((st) => ({ ...st, taskTitle: t.title, taskId: t.id }))
       );
       const checkins = state.checkIns.filter((c) => c.userId === uid && isMatchDate(c.date));
+      
+      // Detailed metrics
+      const done = myTasks.filter(t => t.status === "done").length;
+      const cancelled = myTasks.filter(t => t.status === "cancelled").length;
+      const pending = myTasks.filter(t => ["todo", "inprogress", "review"].includes(t.status)).length;
+      
+      // Late logic: Done but completedAfter deadline OR Not done but deadlinePassed
+      const late = myTasks.filter(t => {
+        if (!t.deadline) return false;
+        if (t.status === "done") {
+          return t.completedAt ? t.completedAt > t.deadline : false;
+        }
+        return new Date().toISOString() > t.deadline;
+      }).length;
+
       return {
         user,
         tasks: myTasks,
         subTasks: mySubTasks,
-        taskDone: myTasks.filter((t) => t.status === "done").length,
-        taskInProgress: myTasks.filter((t) => t.status === "inprogress").length,
+        taskDone: done,
+        taskCancelled: cancelled,
+        taskPending: pending,
+        taskLate: late,
         checkinDays: checkins.length,
         checkinLate: checkins.filter((c) => c.status === "late").length,
         checkinPresent: checkins.filter((c) => c.status === "present").length,
@@ -82,6 +110,35 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
     }),
     [state.users, state.tasks, state.checkIns, filterMode, selectedMonth, selectedDay]
   );
+
+  const exportToExcel = () => {
+    const data = userStats.map(us => ({
+      "Nhân viên": us.user.fullName,
+      "Phòng ban": us.user.department || "N/A",
+      "Tổng Task": us.tasks.length,
+      "Hoàn thành": us.taskDone,
+      "Đã hủy": us.taskCancelled,
+      "Chưa xong": us.taskPending,
+      "Trễ deadline": us.taskLate,
+      "Ngày công": us.checkinDays,
+      "Đi muộn": us.checkinLate,
+      "Đúng giờ": us.checkinPresent,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "KPI Reports");
+    
+    // Auto-size columns
+    const maxWidths = Object.keys(data[0] || {}).map(key => {
+      const lengths = data.map(row => String((row as any)[key]).length);
+      return Math.max(key.length, ...lengths) + 2;
+    });
+    ws["!cols"] = maxWidths.map(w => ({ wch: w }));
+
+    const fileName = `Bao_cao_KPI_${filterMode === "month" ? selectedMonth : selectedDay}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const getBrand = (id: string) => state.brands.find((b) => b.id === id);
 
@@ -119,6 +176,25 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
             ) : (
               <input type="date" value={selectedDay} onChange={(e) => setSelectedDay(e.target.value)} style={inp} />
             )}
+            <button
+              onClick={exportToExcel}
+              style={{
+                ...inp,
+                background: "var(--accent-blue)",
+                color: "white",
+                borderColor: "var(--accent-blue)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "7px 16px",
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.9"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
+              <FileSpreadsheet size={16} /> Xuất Excel
+            </button>
           </div>
         </div>
 
@@ -149,8 +225,8 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
           </div>
 
           {/* Table header */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 40px", padding: "10px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
-            {["Nhân viên", "Tasks", "Xong", "Sub-tasks", "Ngày công", "Đi muộn", ""].map((h) => (
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 40px", padding: "10px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
+            {["Nhân viên", "Tasks", "Xong", "Hủy", "Trễ", "Sub-tasks", "Ngày công", "Đi muộn", ""].map((h) => (
               <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
             ))}
           </div>
@@ -162,7 +238,7 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
               <div key={us.user.id}>
                 {/* User row */}
                 <div
-                  style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 40px", padding: "14px 20px", borderBottom: "1px solid var(--border)", alignItems: "center", cursor: "pointer", transition: "background 0.15s" }}
+                  style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 40px", padding: "14px 20px", borderBottom: "1px solid var(--border)", alignItems: "center", cursor: "pointer", transition: "background 0.15s" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   onClick={() => setExpandedUser(isExpanded ? null : us.user.id)}
@@ -184,6 +260,12 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-green)" }}>{us.taskDone}</div>
                     <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{taskDonePct}%</div>
                   </div>
+                  {/* Cancelled */}
+                  <div style={{ fontSize: 13, color: "var(--accent-red)", fontWeight: 700 }}>{us.taskCancelled}</div>
+                  {/* Late */}
+                  <div style={{ fontSize: 13, color: us.taskLate > 0 ? "var(--accent-red)" : "var(--text-muted)", fontWeight: 700 }}>
+                    {us.taskLate > 0 ? `⚠ ${us.taskLate}` : "0"}
+                  </div>
                   {/* Sub-tasks */}
                   <div style={{ fontSize: 13, color: "var(--accent-purple)", fontWeight: 700 }}>
                     {us.subDone}/{us.subTasks.length}
@@ -202,7 +284,7 @@ function AdminReport({ state }: { state: ReturnType<typeof useData>["state"] }) 
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)", padding: "166px 20px" }}>
+                  <div style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)", padding: "16px 20px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                       {/* Tasks detail */}
                       <div>

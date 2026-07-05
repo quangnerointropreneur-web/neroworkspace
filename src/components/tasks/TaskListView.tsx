@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Task, Brand, User, TaskPriority, TaskStatus } from "@/lib/types";
+import { Task, Brand, User, TaskPriority, TaskStatus, Project } from "@/lib/types";
 import { format, parseISO, isPast } from "date-fns";
-import { AlertCircle, Calendar, ChevronDown, ChevronRight, CheckSquare, Square, Edit3 } from "lucide-react";
+import { AlertCircle, Calendar, ChevronDown, ChevronRight, CheckSquare, Square, Rocket } from "lucide-react";
 
 const STATUS_COLORS: Record<TaskStatus, { bg: string; text: string; border: string }> = {
   todo: { bg: "rgba(107,114,128,0.12)", text: "#9ca3af", border: "rgba(107,114,128,0.3)" },
   inprogress: { bg: "rgba(59,130,246,0.12)", text: "#60a5fa", border: "rgba(59,130,246,0.3)" },
   review: { bg: "rgba(245,158,11,0.12)", text: "#fbbf24", border: "rgba(245,158,11,0.3)" },
   done: { bg: "rgba(16,185,129,0.12)", text: "#34d399", border: "rgba(16,185,129,0.3)" },
+  cancelled: { bg: "rgba(239,68,68,0.12)", text: "#f87171", border: "rgba(239,68,68,0.3)" },
 };
 const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: "Chờ xử lý", inprogress: "Đang thực hiện", review: "Chờ duyệt", done: "Hoàn thành",
+  todo: "Chờ xử lý", inprogress: "Đang thực hiện", review: "Chờ duyệt", done: "Hoàn thành", cancelled: "Đã hủy",
 };
 const PRIORITY_CONFIG: Record<TaskPriority, { color: string; label: string }> = {
   low: { color: "#6b7280", label: "Thấp" },
@@ -24,10 +25,11 @@ interface Props {
   tasks: Task[];
   brands: Brand[];
   users: User[];
+  projects: Project[];
   onTaskClick: (task: Task) => void;
 }
 
-export default function TaskListView({ tasks, brands, users, onTaskClick }: Props) {
+export default function TaskListView({ tasks, brands, users, projects, onTaskClick }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
 
@@ -38,13 +40,14 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const columnWidths = isMobile ? "28px 1fr 70px 80px" : "28px 2.5fr 1fr 1.2fr 1fr 1fr 90px";
+  const columnWidths = isMobile ? "28px 1fr 70px 80px" : "28px 2.2fr 1fr 1.2fr 1.2fr 1fr 1fr 90px";
 
   const getBrand = (id: string) => brands.find((b) => b.id === id);
   const getPics = (ids: string[]) => (ids ?? []).map((id) => users.find((u) => u.id === id)).filter(Boolean) as User[];
   const toggleExpand = (id: string) => setExpandedIds((prev) => {
     const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     return next;
   });
 
@@ -67,16 +70,17 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
           ))
         ) : (
-          ["", "Tên công việc", "Brand", "PIC", "Deadline", "Ưu tiên", "Trạng thái"].map((h) => (
+          ["", "Tên công việc", "Brand", "Dự án", "Xử lý", "Deadline", "Ưu tiên", "Trạng thái"].map((h) => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
           ))
         )}
       </div>
 
-      {tasks.map((task, i) => {
+      {tasks.map((task) => {
         const brand = getBrand(task.brandId);
         const pics = getPics(task.picIds ?? [task.picId ?? ""].filter(Boolean));
-        const isOverdue = task.status !== "done" && task.deadline && isPast(parseISO(task.deadline));
+        const taskDeadline = safeDate(task.deadline);
+        const isOverdue = task.status !== "done" && taskDeadline && isPast(taskDeadline);
         const doneSubCount = task.subTasks.filter((s) => s.status === "done").length;
         const isExpanded = expandedIds.has(task.id);
         const statusConf = STATUS_COLORS[task.status];
@@ -93,9 +97,10 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
                 cursor: "pointer",
                 transition: "background 0.15s",
                 alignItems: "center",
+                background: isOverdue ? "rgba(239,68,68,0.03)" : "transparent",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = isOverdue ? "rgba(239,68,68,0.06)" : "var(--bg-hover)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = isOverdue ? "rgba(239,68,68,0.03)" : "transparent")}
             >
               {/* Expand toggle */}
               <div onClick={() => toggleExpand(task.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", cursor: "pointer" }}>
@@ -107,6 +112,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", marginBottom: 3, display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_CONFIG[task.priority].color, flexShrink: 0 }} />
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "nowrap" : "normal" }}>{task.title}</span>
+                  {isOverdue && <span style={{ padding: "2px 6px", borderRadius: 4, background: "#ef4444", color: "white", fontSize: 9, fontWeight: 800, textTransform: "uppercase", whiteSpace: "nowrap" }}>Quá hạn</span>}
                 </div>
                 {task.subTasks.length > 0 && !isMobile && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
@@ -127,6 +133,18 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
                 </div>
               )}
 
+              {/* Project (Desktop) */}
+              {!isMobile && (
+                <div>
+                  {task.projectId && (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 6, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", fontSize: 11, color: "var(--accent-blue)", fontWeight: 700 }}>
+                      <Rocket size={11} />
+                      {projects.find(p => p.id === task.projectId)?.name || "Dự án"}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* PICs (Desktop) */}
               {!isMobile && (
                 <div style={{ display: "flex", gap: 3 }}>
@@ -142,7 +160,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
               {/* Deadline */}
               <div style={{ fontSize: 12, color: isOverdue ? "var(--accent-red)" : "var(--text-secondary)", fontWeight: isOverdue ? 700 : 400, display: "flex", alignItems: "center", gap: 4 }}>
                 <Calendar size={12} />
-                {isMobile ? format(parseISO(task.deadline), "dd/MM") : format(parseISO(task.deadline), "dd/MM/yyyy")}
+                {taskDeadline ? (isMobile ? format(taskDeadline, "dd/MM") : format(taskDeadline, "dd/MM/yyyy")) : "--"}
                 {isOverdue && <AlertCircle size={11} />}
               </div>
 
@@ -169,7 +187,8 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
               <div style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
                 {task.subTasks.map((st) => {
                   const stPics = getPics(st.picIds ?? []);
-                  const stOverdue = st.status === "pending" && isPast(parseISO(st.deadline));
+                  const subDeadline = safeDate(st.deadline);
+                  const stOverdue = st.status === "pending" && subDeadline && isPast(subDeadline);
                   return (
                     <div
                       key={st.id}
@@ -204,7 +223,7 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
 
                       {/* Sub deadline */}
                       <div style={{ fontSize: 11, color: stOverdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: stOverdue ? 600 : 400 }}>
-                        {format(parseISO(st.deadline), "dd/MM/yyyy")}
+                        {subDeadline ? format(subDeadline, "dd/MM/yyyy") : "--"}
                       </div>
 
                       {/* Empty priority col */}
@@ -226,4 +245,10 @@ export default function TaskListView({ tasks, brands, users, onTaskClick }: Prop
       })}
     </div>
   );
+}
+
+function safeDate(value?: string) {
+  if (!value) return null;
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

@@ -3,18 +3,19 @@
 import { useState, useMemo } from "react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
-  eachDayOfInterval, isSameMonth, isSameDay, isToday,
+  eachDayOfInterval, isSameMonth, isToday,
   addMonths, subMonths, parseISO, addWeeks, subWeeks,
   startOfWeek as sowFn, endOfWeek as eowFn,
 } from "date-fns";
 import { vi } from "date-fns/locale";
-import { Task, Brand, User } from "@/lib/types";
+import { Task, Brand, User, Project } from "@/lib/types";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 
 interface Props {
   tasks: Task[];
   brands: Brand[];
   users: User[];
+  projects: Project[];
   onTaskClick: (task: Task) => void;
   showHistory: boolean;
 }
@@ -24,6 +25,7 @@ const STATUS_COLOR: Record<string, string> = {
   inprogress: "#3b82f6",
   review: "#f59e0b",
   done: "#10b981",
+  cancelled: "#ef4444",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -31,29 +33,31 @@ const STATUS_LABEL: Record<string, string> = {
   inprogress: "Đang thực hiện",
   review: "Chờ duyệt",
   done: "Hoàn thành",
+  cancelled: "Đã hủy",
 };
 
 type CalView = "month" | "week";
 
-export default function TaskCalendarView({ tasks, brands, users, onTaskClick, showHistory }: Props) {
+export default function TaskCalendarView({ tasks, brands, onTaskClick }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<CalView>("month");
 
   const getBrand = (id: string) => brands.find((b) => b.id === id);
-  const getUsers = (ids: string[]) => (ids ?? []).map((id) => users.find((u) => u.id === id)).filter(Boolean) as User[];
 
   // Tasks indexed by date string
   const tasksByDate = useMemo(() => {
     const map: Record<string, Task[]> = {};
     tasks.forEach((t) => {
-      const key = t.deadline.split("T")[0];
+      const key = getDateKey(t.deadline);
+      if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(t);
     });
     // Also index by startDate
     tasks.forEach((t) => {
-      if (t.startDate && t.startDate !== t.deadline.split("T")[0]) {
-        const key = t.startDate.split("T")[0];
+      const deadlineKey = getDateKey(t.deadline);
+      const key = getDateKey(t.startDate);
+      if (key && key !== deadlineKey) {
         if (!map[key]) map[key] = [];
         if (!map[key].find((x) => x.id === t.id)) map[key].push(t);
       }
@@ -139,6 +143,7 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
             textTransform: "uppercase",
             letterSpacing: "0.06em",
             borderRight: "1px solid var(--border)",
+            minWidth: 0,
           }}>
             {label}
           </div>
@@ -167,6 +172,8 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
                 borderBottom: (i < days.length - 7) ? "1px solid var(--border)" : "none",
                 opacity: isCurrentMonth ? 1 : 0.45,
                 position: "relative",
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
               {/* Day number */}
@@ -188,11 +195,11 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
               </div>
 
               {/* Tasks */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, overflow: "hidden" }}>
                 {visibleTasks.map((task) => {
                   const brand = getBrand(task.brandId);
                   const color = brand?.color ?? STATUS_COLOR[task.status];
-                  const isDeadline = format(parseISO(task.deadline), "yyyy-MM-dd") === dateKey;
+                  const isDeadline = getDateKey(task.deadline) === dateKey;
 
                   return (
                     <div
@@ -200,6 +207,10 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
                       onClick={() => onTaskClick(task)}
                       title={`${task.title} — ${STATUS_LABEL[task.status]}`}
                       style={{
+                        width: "100%",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                        display: "block",
                         padding: view === "month" ? "2px 5px" : "4px 7px",
                         borderRadius: 4,
                         background: isDeadline ? color : `${color}22`,
@@ -223,7 +234,7 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
                 })}
 
                 {overflowCount > 0 && (
-                  <div style={{ fontSize: 10, color: "var(--accent-blue)", fontWeight: 600, paddingLeft: 4, cursor: "pointer" }}>
+                  <div style={{ fontSize: 10, color: "var(--accent-blue)", fontWeight: 600, paddingLeft: 4, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     +{overflowCount} task khác
                   </div>
                 )}
@@ -251,4 +262,11 @@ export default function TaskCalendarView({ tasks, brands, users, onTaskClick, sh
       </div>
     </div>
   );
+}
+
+function getDateKey(value?: string) {
+  if (!value) return null;
+  const parsed = parseISO(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return format(parsed, "yyyy-MM-dd");
 }

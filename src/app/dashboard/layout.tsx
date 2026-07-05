@@ -34,9 +34,9 @@ export default function DashboardLayout({
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
       <Sidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <Topbar onMenuClick={() => setMobileMenuOpen(true)} />
-        <main style={{ flex: 1, padding: "16px 16px", overflowX: "hidden", overflowY: "auto", background: "var(--bg-primary)" }}>
+        <main style={{ flex: 1, padding: "24px", overflowY: "auto", background: "var(--bg-primary)" }}>
           {children}
         </main>
       </div>

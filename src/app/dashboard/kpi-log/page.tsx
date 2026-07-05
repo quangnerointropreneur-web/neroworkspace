@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth, useData } from "@/context/AppContext";
+import { canAccessBrand, getVisibleBrands } from "@/lib/permissions";
 import { format } from "date-fns";
 import { Plus, Send, TrendingUp, Calendar, Target, BarChart3, Trash2, Info } from "lucide-react";
 
@@ -26,7 +27,11 @@ export default function KPILogPage() {
   const [logDate, setLogDate] = useState(TODAY);
   const [success, setSuccess] = useState(false);
 
-  const selectedBrand = state.brands.find((b) => b.id === selectedBrandId);
+  const visibleBrands = useMemo(() => getVisibleBrands(state.brands, currentUser), [state.brands, currentUser]);
+  const effectiveSelectedBrandId = canAccessBrand(currentUser, selectedBrandId)
+    ? selectedBrandId
+    : visibleBrands[0]?.id ?? "";
+  const selectedBrand = visibleBrands.find((b) => b.id === effectiveSelectedBrandId);
   const kpisOfBrand = selectedBrand?.kpis ?? [];
   const selectedKpi = kpisOfBrand.find((k) => k.id === selectedKpiId);
 
@@ -37,10 +42,10 @@ export default function KPILogPage() {
   };
 
   const handleSubmit = () => {
-    if (!selectedKpiId || logValue === "" || logValue === 0) return;
+    if (!selectedKpiId || logValue === "" || logValue === 0 || !effectiveSelectedBrandId) return;
     addKPILog({
       kpiId: selectedKpiId,
-      brandId: selectedBrandId,
+      brandId: effectiveSelectedBrandId,
       userId: uid,
       date: logDate,
       value: Number(logValue),
@@ -55,7 +60,7 @@ export default function KPILogPage() {
 
   // My logs
   const myLogs = state.kpiLogs
-    .filter((l) => l.userId === uid)
+    .filter((l) => l.userId === uid && canAccessBrand(currentUser, l.brandId))
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const inp: React.CSSProperties = {
@@ -88,21 +93,21 @@ export default function KPILogPage() {
         {/* Brand cards */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Chọn Brand</div>
-          {state.brands.map((brand) => (
+          {visibleBrands.map((brand) => (
             <div
               key={brand.id}
               onClick={() => handleBrandChange(brand.id)}
               style={{
                 padding: "14px 16px",
                 borderRadius: 12,
-                border: `1.5px solid ${selectedBrandId === brand.id ? brand.color : "var(--border)"}`,
-                background: selectedBrandId === brand.id ? `${brand.color}10` : "var(--bg-card)",
+                border: `1.5px solid ${effectiveSelectedBrandId === brand.id ? brand.color : "var(--border)"}`,
+                background: effectiveSelectedBrandId === brand.id ? `${brand.color}10` : "var(--bg-card)",
                 cursor: "pointer",
                 transition: "all 0.15s",
                 display: "flex", alignItems: "center", gap: 12,
               }}
-              onMouseEnter={(e) => selectedBrandId !== brand.id && (e.currentTarget.style.borderColor = brand.color + "60")}
-              onMouseLeave={(e) => selectedBrandId !== brand.id && (e.currentTarget.style.borderColor = "var(--border)")}
+              onMouseEnter={(e) => effectiveSelectedBrandId !== brand.id && (e.currentTarget.style.borderColor = brand.color + "60")}
+              onMouseLeave={(e) => effectiveSelectedBrandId !== brand.id && (e.currentTarget.style.borderColor = "var(--border)")}
             >
               <div style={{ width: 38, height: 38, borderRadius: 10, background: `${brand.color}20`, border: `2px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: brand.color, flexShrink: 0 }}>
                 {brand.name.charAt(0)}
@@ -111,7 +116,7 @@ export default function KPILogPage() {
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{brand.name}</div>
                 <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{brand.kpis.length} KPIs</div>
               </div>
-              {selectedBrandId === brand.id && (
+              {effectiveSelectedBrandId === brand.id && (
                 <div style={{ marginLeft: "auto", width: 8, height: 8, borderRadius: "50%", background: brand.color, flexShrink: 0 }} />
               )}
             </div>
@@ -249,7 +254,7 @@ export default function KPILogPage() {
           </div>
         ) : (
           myLogs.map((log) => {
-            const brand = state.brands.find((b) => b.id === log.brandId);
+            const brand = visibleBrands.find((b) => b.id === log.brandId);
             const kpi = brand?.kpis.find((k) => k.id === log.kpiId);
             return (
               <div
