@@ -1,0 +1,23 @@
+{
+  "name": "Nero Workspace",
+  "short_name": "Nero Ops",
+  "description": "Hệ thống Quản lý Công việc Nội bộ Nero",
+  "start_url": "/dashboard/tasks",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
