@@ -38,22 +38,22 @@ const SHOW_SALES_MANAGEMENT = false;
 
 const NAV_GROUPS: { groupName: string; items: NavItem[] }[] = [
   {
-    groupName: "Tong quan",
+    groupName: "Overview",
     items: [
-      { href: "/dashboard", label: "Trang chu", icon: <LayoutDashboard size={16} /> },
+      { href: "/dashboard", label: "Home", icon: <LayoutDashboard size={16} /> },
     ],
   },
   {
-    groupName: "Quan ly ban hang",
+    groupName: "Sales",
     items: [
-      { href: "/dashboard/pipeline", label: "Pheu ban hang", icon: <Briefcase size={16} /> },
-      { href: "/dashboard/contacts", label: "Khach hang", icon: <Users size={16} /> },
-      { href: "/dashboard/activity", label: "Hoat dong CRM", icon: <Clock size={16} /> },
-      { href: "/dashboard/crm-report", label: "Bao cao CRM", icon: <TrendingUp size={16} />, adminOnly: true },
+      { href: "/dashboard/pipeline", label: "Sales pipeline", icon: <Briefcase size={16} /> },
+      { href: "/dashboard/contacts", label: "Customers", icon: <Users size={16} /> },
+      { href: "/dashboard/activity", label: "CRM activity", icon: <Clock size={16} /> },
+      { href: "/dashboard/crm-report", label: "CRM report", icon: <TrendingUp size={16} />, adminOnly: true },
     ],
   },
   {
-    groupName: "Cong viec",
+    groupName: "Work",
     items: [
       { href: "/dashboard/brands", label: "Brand", icon: <Briefcase size={16} />, adminOnly: true },
       { href: "/dashboard/projects", label: "OKR / Project", icon: <Rocket size={16} /> },
@@ -62,18 +62,18 @@ const NAV_GROUPS: { groupName: string; items: NavItem[] }[] = [
     ],
   },
   {
-    groupName: "Nhan su",
+    groupName: "People",
     items: [
-      { href: "/dashboard/hr", label: "Nhan su", icon: <Users size={16} />, adminOnly: true },
+      { href: "/dashboard/hr", label: "People", icon: <Users size={16} />, adminOnly: true },
     ],
   },
   {
-    groupName: "He thong",
+    groupName: "System",
     items: [
-      { href: "/dashboard/report", label: "Bao cao chung", icon: <BarChart2 size={16} />, adminOnly: true },
+      { href: "/dashboard/report", label: "General report", icon: <BarChart2 size={16} />, adminOnly: true },
       { href: "/dashboard/prompts", label: "Prompt AI", icon: <Sparkles size={16} />, supervisorOnly: true },
-      { href: "/dashboard/accounts", label: "Tai khoan", icon: <Key size={16} />, adminOnly: true },
-      { href: "/dashboard/settings", label: "Cau hinh", icon: <Settings size={16} />, adminOnly: true },
+      { href: "/dashboard/accounts", label: "Accounts", icon: <Key size={16} />, adminOnly: true },
+      { href: "/dashboard/settings", label: "Settings", icon: <Settings size={16} />, adminOnly: true },
     ],
   },
 ];
@@ -91,11 +91,11 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    "Tong quan": true,
-    "Quan ly ban hang": false,
-    "Cong viec": true,
-    "Nhan su": true,
-    "He thong": true,
+    "Overview": true,
+    "Sales": false,
+    "Work": true,
+    "People": true,
+    "System": true,
   });
 
   const isAdmin = currentUser?.role === "admin";
@@ -196,7 +196,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: Props) {
 
       <nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "4px 8px" }}>
         {NAV_GROUPS.map((group, groupIndex) => {
-          if (!SHOW_SALES_MANAGEMENT && group.groupName === "Quan ly ban hang") return null;
+          if (!SHOW_SALES_MANAGEMENT && group.groupName === "Sales") return null;
 
           const visibleItems = group.items.filter((item) => {
             if (item.adminOnly && !isAdmin) return false;
@@ -354,7 +354,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: Props) {
 
         <button
           onClick={handleLogout}
-          title={collapsed && !isMobile ? "Dang xuat" : undefined}
+          title={collapsed && !isMobile ? "Log out" : undefined}
           style={{
             width: "100%",
             display: "flex",
@@ -372,7 +372,7 @@ export default function Sidebar({ mobileOpen, setMobileOpen }: Props) {
           }}
         >
           <LogOut size={13} />
-          {(!collapsed || isMobile) && <span>Dang xuat</span>}
+          {(!collapsed || isMobile) && <span>Log out</span>}
         </button>
       </div>
     </>

@@ -199,17 +199,17 @@ function TasksPageContent() {
     setFilters((f) => ({ ...f, [key]: value }));
 
   const viewButtons = [
-    { id: "work" as TaskView, icon: CheckSquare, label: "Xử lý" },
+    { id: "work" as TaskView, icon: CheckSquare, label: "Focus" },
     { id: "list" as TaskView, icon: List, label: "List" },
     { id: "board" as TaskView, icon: Columns, label: "Board" },
-    { id: "calendar" as TaskView, icon: Calendar, label: "Lịch" },
+    { id: "calendar" as TaskView, icon: Calendar, label: "Calendar" },
   ];
 
   const inputStyle: React.CSSProperties = {
     background: "var(--bg-secondary)",
     border: "1px solid var(--border)",
-    borderRadius: 10,
-    padding: "8px 12px",
+    borderRadius: 8,
+    padding: "6px 10px",
     color: "var(--text-primary)",
     fontSize: 13,
     outline: "none",
@@ -217,35 +217,58 @@ function TasksPageContent() {
   };
 
   return (    <>
-      <div className="animate-fadeIn" style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 14 }}>
+      <div className="animate-fadeIn" style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 12 }}>
         {/* Sticky Header Container */}
-        <div style={{ position: "sticky", top: -16, zIndex: 50, background: "var(--bg-primary)", padding: isMobile ? "0 0 10px 0" : "0 0 12px 0", margin: "0 0 -4px 0", display: "flex", flexDirection: "column", gap: isMobile ? 10 : 12 }}>
+        <div style={{ position: "sticky", top: -16, zIndex: 50, background: "var(--bg-primary)", padding: isMobile ? "0 0 8px 0" : "0 0 8px 0", margin: "0 0 -6px 0", display: "flex", flexDirection: "column", gap: isMobile ? 8 : 8 }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 2 }}>
-                Công việc
+          <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div>
+              <h1 style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: "var(--text-primary)", marginBottom: 1 }}>
+                Tasks
               </h1>
               <p style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                {filteredTasks.length} task {hasActiveFilters ? "(đã lọc)" : ""}
+                {filteredTasks.length} task{filteredTasks.length === 1 ? "" : "s"} {hasActiveFilters ? "(filtered)" : ""}
               </p>
+              </div>
+              <button
+                onClick={() => setShowAddTask(true)}
+                title="Add task"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 12px",
+                  borderRadius: 9,
+                  background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+                  border: "none",
+                  color: "white",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 16px rgba(59,130,246,0.24)",
+                }}
+              >
+                <Plus size={15} />
+                Add
+              </button>
             </div>
 
             <div style={{ display: "flex", gap: 8, alignItems: "center", width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-end", flexWrap: "wrap" }}>
-              <div style={{ position: "relative", flex: isMobile ? "1 0 100%" : "0 1 360px", minWidth: isMobile ? "100%" : 260 }}>
+              <div style={{ position: "relative", flex: isMobile ? "1 0 100%" : "0 1 300px", minWidth: isMobile ? "100%" : 240 }}>
                 <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
                 <input
                   type="text"
-                  placeholder="Tìm task, mô tả, sub-task..."
+                  placeholder="Search task, note, sub-task..."
                   value={filters.search}
                   onChange={(e) => setFilter("search", e.target.value)}
-                  style={{ ...inputStyle, width: "100%", paddingLeft: 36, height: 40 }}
+                  style={{ ...inputStyle, width: "100%", paddingLeft: 34, height: 34 }}
                 />
               </div>
 
               {/* View toggle group */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 9, overflow: "hidden" }}>
                   {viewButtons.map((btn) => {
                     const Icon = btn.icon;
                     return (
@@ -257,7 +280,7 @@ function TasksPageContent() {
                           display: "flex",
                           alignItems: "center",
                           gap: 6,
-                          padding: isMobile ? "8px 10px" : "8px 14px",
+                          padding: isMobile ? "7px 9px" : "7px 11px",
                           border: "none",
                           background: view === btn.id ? "rgba(59,130,246,0.15)" : "transparent",
                           color: view === btn.id ? "#60a5fa" : "var(--text-secondary)",
@@ -280,7 +303,7 @@ function TasksPageContent() {
                   onClick={() => setFilters(f => ({ ...f, showHistory: !f.showHistory }))}
                   title={filters.showHistory ? "Ẩn lịch sử" : "Xem lịch sử"}
                   style={{
-                    display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10,
+                    display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: 9,
                     background: filters.showHistory ? "rgba(245,158,11,0.15)" : "var(--bg-card)",
                     border: `1px solid ${filters.showHistory ? "#f59e0b" : "var(--border)"}`,
                     color: filters.showHistory ? "#f59e0b" : "var(--text-secondary)", 
@@ -298,7 +321,7 @@ function TasksPageContent() {
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, 
+                    display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", borderRadius: 9, 
                       background: hasActiveFilters ? "rgba(59,130,246,0.1)" : "var(--bg-card)",
                       border: `1px solid ${hasActiveFilters ? "var(--accent-blue)" : "var(--border)"}`,
                       color: hasActiveFilters ? "var(--accent-blue)" : "var(--text-secondary)",
@@ -306,21 +329,21 @@ function TasksPageContent() {
                     }}
                   >
                     <Filter size={14} />
-                    <span>Lọc</span>
+                    <span>Filter</span>
                   </button>
                 )}
 
                 <button
                   onClick={() => setShowAddTask(true)}
                   style={{ 
-                    display: "flex", alignItems: "center", gap: 6, padding: isMobile ? "8px 12px" : "9px 18px", 
-                    borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
+                    display: "none", alignItems: "center", gap: 6, padding: isMobile ? "7px 11px" : "8px 14px", 
+                    borderRadius: 9, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", 
                     border: "none", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", 
                     boxShadow: "0 4px 16px rgba(59,130,246,0.3)" 
                   }}
                 >
                   <Plus size={16} />
-                  <span>Thêm</span>
+                  <span>Add</span>
                 </button>
               </div>
             </div>
@@ -328,13 +351,13 @@ function TasksPageContent() {
 
           {/* Filter Bar */}
           {(!isMobile || showFilters) && (
-            <div className="animate-fadeIn" style={{ display: "flex", flexWrap: "nowrap", gap: 8, alignItems: "center", background: "var(--bg-card)", padding: isMobile ? "10px" : "10px 12px", borderRadius: 14, border: "1px solid var(--border)", boxShadow: isMobile ? "0 10px 40px rgba(0,0,0,0.2)" : "0 2px 12px rgba(0,0,0,0.08)", overflowX: "auto" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", marginRight: 5 }}>
+            <div className="animate-fadeIn" style={{ display: "flex", flexWrap: "nowrap", gap: 6, alignItems: "center", background: "var(--bg-card)", padding: isMobile ? "8px" : "7px 10px", borderRadius: 12, border: "1px solid var(--border)", boxShadow: isMobile ? "0 10px 40px rgba(0,0,0,0.2)" : "0 2px 12px rgba(0,0,0,0.08)", overflowX: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-muted)", marginRight: 2 }}>
                 <Filter size={14} />
-                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Lọc</span>
+                <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Filter</span>
               </div>
 
-              <select value={filters.brandId} onChange={(e) => setFilter("brandId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 140 }}>
+              <select value={filters.brandId} onChange={(e) => setFilter("brandId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 118 }}>
                 <option value="">Brand</option>
                 {visibleBrands.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
@@ -342,41 +365,41 @@ function TasksPageContent() {
               </select>
 
               {isAdmin && (
-                <select value={filters.picId} onChange={(e) => setFilter("picId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 140 }}>
-                  <option value="">Người xử lý</option>
+                <select value={filters.picId} onChange={(e) => setFilter("picId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 122 }}>
+                  <option value="">Owner</option>
                   {state.users.map((u) => (
                     <option key={u.id} value={u.id}>{u.fullName}</option>
                   ))}
                 </select>
               )}
 
-              <select value={filters.projectId} onChange={(e) => setFilter("projectId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 180, flex: "1 0 180px" }}>
-                <option value="">Dự án</option>
+              <select value={filters.projectId} onChange={(e) => setFilter("projectId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 142, flex: "1 0 142px" }}>
+                <option value="">Project</option>
                 {filterProjects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
 
-              <select value={filters.status} onChange={(e) => setFilter("status", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 138 }}>
-                <option value="">Trạng thái</option>
-                <option value="todo">Chờ xử lý</option>
-                <option value="inprogress">Đang thực hiện</option>
-                <option value="review">Chờ duyệt</option>
-                <option value="done">Hoàn thành</option>
-                <option value="cancelled">Đã hủy</option>
+              <select value={filters.status} onChange={(e) => setFilter("status", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 122 }}>
+                <option value="">Status</option>
+                <option value="todo">To do</option>
+                <option value="inprogress">In progress</option>
+                <option value="review">Review</option>
+                <option value="done">Done</option>
+                <option value="cancelled">Cancelled</option>
               </select>
 
-              <select value={filters.priority} onChange={(e) => setFilter("priority", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 110 }}>
-                <option value="">Ưu tiên</option>
-                <option value="high">Cao</option>
-                <option value="medium">Vừa</option>
-                <option value="low">Thấp</option>
+              <select value={filters.priority} onChange={(e) => setFilter("priority", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 98 }}>
+                <option value="">Priority</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
               </select>
 
               <div style={{ display: "flex", gap: 5, alignItems: "center", flex: "0 0 auto" }}>
-                <input type="date" value={filters.dateFrom} onChange={(e) => setFilter("dateFrom", e.target.value)} style={{ ...inputStyle, width: 140 }} title="Từ ngày" />
+                <input type="date" value={filters.dateFrom} onChange={(e) => setFilter("dateFrom", e.target.value)} style={{ ...inputStyle, width: 126 }} title="From date" />
                 <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>
-                <input type="date" value={filters.dateTo} onChange={(e) => setFilter("dateTo", e.target.value)} style={{ ...inputStyle, width: 140 }} title="Đến ngày" />
+                <input type="date" value={filters.dateTo} onChange={(e) => setFilter("dateTo", e.target.value)} style={{ ...inputStyle, width: 126 }} title="To date" />
               </div>
 
               <div style={{ display: "flex", gap: 8, flex: "0 0 auto" }}>
@@ -384,13 +407,13 @@ function TasksPageContent() {
                   <button
                     onClick={clearFilters}
                     style={{ 
-                      display: "flex", alignItems: "center", gap: 4, padding: "8px 12px", borderRadius: 10, 
+                      display: "flex", alignItems: "center", gap: 4, padding: "7px 10px", borderRadius: 9, 
                       background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", 
                       color: "#f87171", fontSize: 12, fontWeight: 600, cursor: "pointer", 
                       flex: 1, justifyContent: "center" 
                     }}
                   >
-                    <X size={12} /> Xóa lọc
+                    <X size={12} /> Clear
                   </button>
                 )}
               </div>

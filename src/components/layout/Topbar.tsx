@@ -26,6 +26,25 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/kpi-log": "Nhập KPI hàng ngày",
 };
 
+const PAGE_TITLES_EN: Record<string, string> = {
+  "/dashboard": "Overview",
+  "/dashboard/contacts": "Customers",
+  "/dashboard/pipeline": "Sales pipeline",
+  "/dashboard/activity": "CRM activity",
+  "/dashboard/crm-report": "CRM report",
+  "/dashboard/tasks": "Tasks manager",
+  "/dashboard/hr": "People",
+  "/dashboard/brands": "Brand Management",
+  "/dashboard/projects": "OKR / Project",
+  "/dashboard/todolist": "Meeting note",
+  "/dashboard/accounts": "Accounts",
+  "/dashboard/settings": "Settings",
+  "/dashboard/prompts": "Prompt AI",
+  "/dashboard/attendance": "Attendance",
+  "/dashboard/report": "General report",
+  "/dashboard/kpi-log": "KPI log",
+};
+
 const NOTIF_TYPE_ICON: Record<string, React.ReactNode> = {
   task: <ListTodo size={13} />,
   subtask: <CheckCheck size={13} />,
@@ -131,7 +150,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
     }
   };
 
-  const title = PAGE_TITLES[pathname] ?? "Nero Ops";
+  const title = PAGE_TITLES_EN[pathname] ?? PAGE_TITLES[pathname] ?? "Nero Ops";
   const initials = currentUser?.fullName.split(" ").slice(-1)[0].charAt(0).toUpperCase() ?? "?";
   const isAdmin = currentUser?.role === "admin";
 
@@ -203,7 +222,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
           <Search size={14} />
           {!isMobile && (
             <>
-              <span>Tìm kiếm...</span>
+              <span>Search...</span>
               <span style={{ marginLeft: "auto", fontSize: 10, background: "var(--border)", borderRadius: 6, padding: "1px 6px", color: "var(--text-muted)" }}>Ctrl+K</span>
             </>
           )}
@@ -412,7 +431,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
                 ref={searchRef}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm kiếm task, dự án..."
+                placeholder="Search tasks, projects..."
                 style={{ flex: 1, background: "none", border: "none", outline: "none", fontSize: 16, color: "var(--text-primary)", fontFamily: "inherit" }}
                 onKeyDown={(e) => e.key === "Escape" && setShowSearch(false)}
               />
@@ -426,7 +445,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
               <div style={{ maxHeight: 380, overflowY: "auto" }}>
                 {searchResults.length === 0 ? (
                   <div style={{ padding: "28px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-                    Không tìm thấy kết quả cho "{searchQuery}"
+                    No result for <span>{searchQuery}</span>
                   </div>
                 ) : (
                   searchResults.map((task) => {
@@ -460,7 +479,7 @@ export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
 
             {searchQuery.length < 2 && (
               <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: 12 }}>
-                Nhập ít nhất 2 ký tự để tìm kiếm...
+                Type at least 2 characters to search...
               </div>
             )}
           </div>

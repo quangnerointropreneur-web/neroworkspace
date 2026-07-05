@@ -67,20 +67,20 @@ export function getNextAction(task: Task) {
   const dueIn = daysUntil(task.deadline);
 
   if (overdueSubTasks.length && unassignedSubTasks.length) {
-    return `Next: ${overdueSubTasks.length} sub-task qu\u00e1 h\u1ea1n, c\u00f3 sub-task ch\u01b0a giao ng\u01b0\u1eddi x\u1eed l\u00fd`;
+    return `Next: ${overdueSubTasks.length} overdue sub-task, plus unassigned sub-task`;
   }
-  if (overdueSubTasks.length) return `Next: ${overdueSubTasks.length} sub-task qu\u00e1 h\u1ea1n`;
-  if (isOverdueDate(task.deadline)) return "Next: Task qu\u00e1 h\u1ea1n, c\u1ea7n x\u1eed l\u00fd ngay";
-  if (!task.picIds?.length && !task.picId) return "Next: Ch\u01b0a c\u00f3 ng\u01b0\u1eddi x\u1eed l\u00fd";
-  if (unassignedSubTasks.length) return `Next: ${unassignedSubTasks.length} sub-task ch\u01b0a giao ng\u01b0\u1eddi`;
-  if (task.status === "review" || reviewingSubTasks.length) return "Next: C\u1ea7n duy\u1ec7t tr\u01b0\u1edbc khi ti\u1ebfp t\u1ee5c";
-  if (dueIn === 0) return "Next: Deadline h\u00f4m nay";
-  if (dueIn !== null && dueIn > 0 && dueIn <= 3) return `Next: C\u00f2n ${dueIn} ng\u00e0y t\u1edbi deadline`;
-  if (task.priority === "high" && !isTaskClosed(task)) return "Next: Task \u01b0u ti\u00ean cao ch\u01b0a ho\u00e0n th\u00e0nh";
-  if (openSubTasks.length) return `Next: C\u00f2n ${openSubTasks.length} sub-task ch\u01b0a ho\u00e0n th\u00e0nh`;
-  if (task.status === "done") return "Next: \u0110\u00e3 ho\u00e0n th\u00e0nh";
-  if (task.status === "cancelled") return "Next: \u0110\u00e3 h\u1ee7y";
-  return "Next: \u0110ang ch\u1edd ph\u1ea3n h\u1ed3i";
+  if (overdueSubTasks.length) return `Next: ${overdueSubTasks.length} overdue sub-task`;
+  if (isOverdueDate(task.deadline)) return "Next: Task is overdue, handle now";
+  if (!task.picIds?.length && !task.picId) return "Next: Assign an owner";
+  if (unassignedSubTasks.length) return `Next: Assign ${unassignedSubTasks.length} sub-task`;
+  if (task.status === "review" || reviewingSubTasks.length) return "Next: Review before continuing";
+  if (dueIn === 0) return "Next: Due today";
+  if (dueIn !== null && dueIn > 0 && dueIn <= 3) return `Next: Due in ${dueIn} day${dueIn === 1 ? "" : "s"}`;
+  if (task.priority === "high" && !isTaskClosed(task)) return "Next: High-priority unfinished task";
+  if (openSubTasks.length) return `Next: ${openSubTasks.length} open sub-task`;
+  if (task.status === "done") return "Next: Completed";
+  if (task.status === "cancelled") return "Next: Cancelled";
+  return "Next: Waiting for update";
 }
 
 export function getTaskPriorityReason(task: Task) {
@@ -90,20 +90,20 @@ export function getTaskPriorityReason(task: Task) {
   const dueIn = daysUntil(task.deadline);
   const reasons: string[] = [];
 
-  if (overdueSubTasks.length) reasons.push(`${overdueSubTasks.length} sub-task qu\u00e1 h\u1ea1n`);
+  if (overdueSubTasks.length) reasons.push(`${overdueSubTasks.length} overdue sub-task`);
   if (isOverdueDate(task.deadline)) {
     const daysLate = Math.abs(dueIn ?? 0);
-    reasons.push(daysLate ? `task qu\u00e1 h\u1ea1n ${daysLate} ng\u00e0y` : "task qu\u00e1 h\u1ea1n");
+    reasons.push(daysLate ? `task is ${daysLate} day${daysLate === 1 ? "" : "s"} overdue` : "task is overdue");
   }
-  if (task.priority === "high" && !isTaskClosed(task)) reasons.push("\u0111\u1ed9 \u01b0u ti\u00ean cao");
-  if (!task.picIds?.length && !task.picId) reasons.push("ch\u01b0a c\u00f3 ng\u01b0\u1eddi x\u1eed l\u00fd");
-  if (unassignedSubTasks.length) reasons.push(`${unassignedSubTasks.length} sub-task ch\u01b0a giao ng\u01b0\u1eddi`);
-  if (task.status === "review" || task.subTasks.some((subTask) => subTask.status === "reviewing")) reasons.push("\u0111ang c\u1ea7n duy\u1ec7t");
-  if (dueIn === 0) reasons.push("deadline h\u00f4m nay");
-  if (dueIn !== null && dueIn > 0 && dueIn <= 3) reasons.push(`s\u1eafp \u0111\u1ebfn h\u1ea1n trong ${dueIn} ng\u00e0y`);
-  if (openSubTasks.length) reasons.push(`c\u00f2n ${openSubTasks.length} sub-task ch\u01b0a x\u1eed l\u00fd`);
+  if (task.priority === "high" && !isTaskClosed(task)) reasons.push("high priority");
+  if (!task.picIds?.length && !task.picId) reasons.push("no owner assigned");
+  if (unassignedSubTasks.length) reasons.push(`${unassignedSubTasks.length} unassigned sub-task`);
+  if (task.status === "review" || task.subTasks.some((subTask) => subTask.status === "reviewing")) reasons.push("waiting for review");
+  if (dueIn === 0) reasons.push("due today");
+  if (dueIn !== null && dueIn > 0 && dueIn <= 3) reasons.push(`due in ${dueIn} day${dueIn === 1 ? "" : "s"}`);
+  if (openSubTasks.length) reasons.push(`${openSubTasks.length} open sub-task`);
 
-  return reasons.length ? reasons.join(", ") : "kh\u00f4ng c\u00f3 vi\u1ec7c g\u1ea5p c\u1ea7n x\u1eed l\u00fd ngay";
+  return reasons.length ? reasons.join(", ") : "no urgent action right now";
 }
 
 export function getTaskUrgencyTone(task: Task): UrgencyTone {

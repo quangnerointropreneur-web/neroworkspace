@@ -50,8 +50,18 @@ export default function ProjectsPage() {
     const projectTasks = state.tasks.filter(t => t.projectId === projectId);
     const total = projectTasks.length;
     const done = projectTasks.filter(t => t.status === "done").length;
+    const today = new Date().toISOString().split("T")[0];
+    const overdue = projectTasks.filter(t => t.status !== "done" && t.status !== "cancelled" && t.deadline < today).length;
+    const review = projectTasks.filter(t => t.status === "review" || t.subTasks.some(st => st.status === "reviewing")).length;
     const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { total, done, progress };
+    return { total, done, overdue, review, progress };
+  };
+
+  const getDaysLeft = (endDate?: string) => {
+    if (!endDate) return null;
+    const today = new Date(new Date().toISOString().split("T")[0]);
+    const end = new Date(endDate);
+    return Math.ceil((end.getTime() - today.getTime()) / 86400000);
   };
 
   const openCreate = () => {
@@ -143,7 +153,74 @@ export default function ProjectsPage() {
           )}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+        <>
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow)" }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 14, fontWeight: 850, color: "var(--text-primary)" }}>Project portfolio</div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>Track timeline, task progress, blocked items, and review work in one table.</div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", minWidth: 980, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "var(--bg-secondary)" }}>
+                  {["Project", "Brand", "Timeline", "Days left", "Progress", "Tasks", "Overdue", "Review", "Status", ""].map((label) => (
+                    <th key={label} style={projectThStyle}>{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => {
+                  const brand = visibleBrands.find((item) => item.id === project.brandId);
+                  const stats = getProjectStats(project.id);
+                  const daysLeft = getDaysLeft(project.endDate);
+                  const isLate = daysLeft !== null && daysLeft < 0 && project.status === "active";
+                  return (
+                    <tr key={project.id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <td style={projectTdStyle}>
+                        <div style={{ fontSize: 13, fontWeight: 850, color: "var(--text-primary)", maxWidth: 260, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{project.name}</div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3, maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{project.description || "No description"}</div>
+                      </td>
+                      <td style={projectTdStyle}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: brand?.color ?? "var(--text-secondary)", fontWeight: 750 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 99, background: brand?.color ?? "var(--text-muted)" }} />
+                          {brand?.name ?? "No brand"}
+                        </span>
+                      </td>
+                      <td style={projectTdStyle}>{project.startDate || "--"} {"->"} {project.endDate || "--"}</td>
+                      <td style={{ ...projectTdStyle, color: isLate ? "var(--accent-red)" : "var(--text-secondary)", fontWeight: 800 }}>
+                        {daysLeft === null ? "--" : daysLeft < 0 ? `${Math.abs(daysLeft)}d late` : `${daysLeft}d`}
+                      </td>
+                      <td style={projectTdStyle}><ProjectProgress percent={stats.progress} /></td>
+                      <td style={projectTdStyle}>{stats.done}/{stats.total}</td>
+                      <td style={{ ...projectTdStyle, color: stats.overdue ? "var(--accent-red)" : "var(--text-muted)", fontWeight: 800 }}>{stats.overdue}</td>
+                      <td style={{ ...projectTdStyle, color: stats.review ? "#f59e0b" : "var(--text-muted)", fontWeight: 800 }}>{stats.review}</td>
+                      <td style={projectTdStyle}>
+                        <span style={{ ...projectStatusStyle, color: project.status === "completed" ? "var(--accent-green)" : project.status === "archived" ? "var(--text-muted)" : "#f59e0b" }}>
+                          {project.status === "active" ? "Active" : project.status === "completed" ? "Done" : "Archived"}
+                        </span>
+                      </td>
+                      <td style={{ ...projectTdStyle, textAlign: "right" }}>
+                        {isAdmin && (
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                            <button onClick={() => openEdit(project)} title="Edit project" style={projectIconButtonStyle}><Edit2 size={14} /></button>
+                            <button onClick={() => handleDelete(project)} title="Delete project" style={{ ...projectIconButtonStyle, color: "#ef4444", borderColor: "rgba(239,68,68,0.25)" }}><Trash2 size={14} /></button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!projects.length && (
+                  <tr>
+                    <td colSpan={10} style={{ padding: 28, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No project in this status.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ display: "none", flexDirection: "column", gap: 32 }}>
           {visibleBrands.map(brand => {
             const brandProjects = projectsByBrand[brand.id] || [];
             if (brandProjects.length === 0 && statusFilter !== "active") return null;
@@ -263,6 +340,7 @@ export default function ProjectsPage() {
             );
           })}
         </div>
+        </>
       )}
     </div>
 
@@ -351,4 +429,58 @@ const inp: React.CSSProperties = {
   outline: "none",
   width: "100%",
   fontFamily: "inherit",
+};
+
+function ProjectProgress({ percent }: { percent: number }) {
+  const color = percent >= 100 ? "var(--accent-green)" : percent >= 70 ? "#f59e0b" : "var(--accent-blue)";
+  return (
+    <div style={{ minWidth: 120 }}>
+      <div style={{ fontSize: 12, fontWeight: 850, color, marginBottom: 5 }}>{percent}%</div>
+      <div style={{ height: 6, borderRadius: 999, background: "var(--border)", overflow: "hidden" }}>
+        <div style={{ width: `${Math.min(100, percent)}%`, height: "100%", background: color }} />
+      </div>
+    </div>
+  );
+}
+
+const projectThStyle: React.CSSProperties = {
+  padding: "10px 12px",
+  textAlign: "left",
+  color: "var(--text-muted)",
+  fontSize: 10,
+  fontWeight: 850,
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
+};
+
+const projectTdStyle: React.CSSProperties = {
+  padding: "12px",
+  color: "var(--text-secondary)",
+  fontSize: 12,
+  verticalAlign: "middle",
+};
+
+const projectStatusStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  borderRadius: 999,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  padding: "4px 9px",
+  fontSize: 11,
+  fontWeight: 850,
+};
+
+const projectIconButtonStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-secondary)",
+  color: "var(--text-secondary)",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };

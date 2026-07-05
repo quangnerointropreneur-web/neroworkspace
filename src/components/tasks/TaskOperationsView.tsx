@@ -40,7 +40,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; bg: str
 ];
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] = [
-  { value: "high", label: "Cao", color: "#dc2626" },
+  { value: "high", label: "High", color: "#dc2626" },
   { value: "medium", label: "Vừa", color: "#d97706" },
   { value: "low", label: "Thấp", color: "#6b7280" },
 ];
@@ -136,24 +136,24 @@ export default function TaskOperationsView({ tasks, brands, users, projects, onO
     <div style={{ display: "grid", gridTemplateColumns: "minmax(420px, 1.08fr) minmax(360px, 0.92fr)", gap: 14, alignItems: "start" }} className="task-ops-grid">
       <div style={surfaceStyle}>
         <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <QuickChip active={quickScope === "action"} label={`C\u1ea7n x\u1eed l\u00fd ${stats.action}`} onClick={() => setQuickScope("action")} />
-          <QuickChip active={quickScope === "overdue"} label={`Qu\u00e1 h\u1ea1n ${stats.overdue}`} tone="#dc2626" onClick={() => setQuickScope("overdue")} />
-          <QuickChip active={quickScope === "today"} label={`H\u00f4m nay ${stats.today}`} tone="#f59e0b" onClick={() => setQuickScope("today")} />
-          <QuickChip active={quickScope === "review"} label={`C\u1ea7n duy\u1ec7t ${stats.review}`} tone="#8b5cf6" onClick={() => setQuickScope("review")} />
-          <QuickChip active={quickScope === "unassigned"} label={`Ch\u01b0a giao ${stats.unassigned}`} tone="#64748b" onClick={() => setQuickScope("unassigned")} />
-          <QuickChip active={quickScope === "mine"} label={`C\u1ee7a t\u00f4i ${stats.mine}`} tone="#3b82f6" onClick={() => setQuickScope("mine")} />
-          <QuickChip active={quickScope === "all"} label={`T\u1ea5t c\u1ea3 ${tasks.length}`} tone="#6b7280" onClick={() => setQuickScope("all")} />
+          <QuickChip active={quickScope === "action"} label={`Focus ${stats.action}`} onClick={() => setQuickScope("action")} />
+          <QuickChip active={quickScope === "overdue"} label={`Overdue ${stats.overdue}`} tone="#dc2626" onClick={() => setQuickScope("overdue")} />
+          <QuickChip active={quickScope === "today"} label={`Today ${stats.today}`} tone="#f59e0b" onClick={() => setQuickScope("today")} />
+          <QuickChip active={quickScope === "review"} label={`Review ${stats.review}`} tone="#8b5cf6" onClick={() => setQuickScope("review")} />
+          <QuickChip active={quickScope === "unassigned"} label={`Unassigned ${stats.unassigned}`} tone="#64748b" onClick={() => setQuickScope("unassigned")} />
+          <QuickChip active={quickScope === "mine"} label={`Mine ${stats.mine}`} tone="#3b82f6" onClick={() => setQuickScope("mine")} />
+          <QuickChip active={quickScope === "all"} label={`All ${tasks.length}`} tone="#6b7280" onClick={() => setQuickScope("all")} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1.7fr) 96px 112px 96px 72px", gap: 10, padding: "10px 16px", background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)" }} className="task-ops-header">
           <HeaderCell label="Task" />
-          <HeaderCell label="Tiến độ" />
-          <HeaderCell label="Xử lý" />
-          <HeaderCell label="Hạn" />
-          <HeaderCell label="Trạng thái" />
+          <HeaderCell label="Progress" />
+          <HeaderCell label="Owner" />
+          <HeaderCell label="Due" />
+          <HeaderCell label="Status" />
         </div>
 
-        <div style={{ maxHeight: "calc(100vh - 315px)", minHeight: 420, overflowY: "auto" }}>
+        <div style={{ minHeight: 460, overflowY: "visible" }}>
           {scopedTasks.map((task) => (
             <TaskQueueRow
               key={task.id}
@@ -173,7 +173,7 @@ export default function TaskOperationsView({ tasks, brands, users, projects, onO
       </div>
 
       {selectedTask && (
-        <div style={{ ...surfaceStyle, position: "sticky", top: 104 }}>
+        <div style={{ ...surfaceStyle, position: "sticky", top: 86 }}>
           <TaskActionPanel
             task={selectedTask}
             brand={brands.find((brand) => brand.id === selectedTask.brandId)}
@@ -246,7 +246,7 @@ function TaskQueueRow({
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: priority.color, flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 760, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</span>
-          {overdue && <span style={dangerPillStyle}>Quá hạn</span>}
+          {overdue && <span style={dangerPillStyle}>Overdue</span>}
         </div>
         <div style={{ fontSize: 11, color: toneStyle.text, background: toneStyle.bg, marginTop: 5, fontWeight: 720, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "fit-content", maxWidth: "100%", padding: "2px 7px", borderRadius: 7 }}>
           {nextAction}
@@ -254,7 +254,7 @@ function TaskQueueRow({
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, minWidth: 0 }}>
           {brand && <MetaPill color={brand.color} label={brand.name} />}
           <span style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-            {task.subTasks.length ? `${doneCount}/${task.subTasks.length} sub-task` : "Chưa có sub-task"}
+            {task.subTasks.length ? `${doneCount}/${task.subTasks.length} sub-task` : "No sub-task"}
           </span>
         </div>
       </div>
@@ -274,7 +274,7 @@ function TaskQueueRow({
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <span style={{ ...miniStatusStyle, color: status.color, background: status.bg }}>{status.label.split(" ").slice(-1)[0]}</span>
+        <span style={{ ...miniStatusStyle, color: status.color, background: status.bg }}>{getStatusShortLabel(task.status)}</span>
         <ChevronRight size={15} color="var(--text-muted)" />
       </div>
     </button>
@@ -334,6 +334,7 @@ function TaskActionPanel({
   const sortedSubTasks = sortSubtasks(task.subTasks);
   const openSubTasks = sortedSubTasks.filter((subTask) => subTask.status !== "done");
   const doneSubTasks = sortedSubTasks.filter((subTask) => subTask.status === "done");
+  const canMarkTaskDone = task.subTasks.length === 0 || task.subTasks.every((subTask) => subTask.status === "done");
 
   const sendTaskMessage = () => {
     if (!currentUser || !taskMessage.trim()) return;
@@ -350,12 +351,12 @@ function TaskActionPanel({
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
               {brand && <MetaPill color={brand.color} label={brand.name} />}
               {project && <span style={neutralPillStyle}>{project.name}</span>}
-              {overdue && <span style={dangerPillStyle}>Quá hạn</span>}
+              {overdue && <span style={dangerPillStyle}>Overdue</span>}
             </div>
             <h2 style={{ fontSize: 18, lineHeight: 1.35, fontWeight: 820, color: "var(--text-primary)", marginBottom: 8 }}>{task.title}</h2>
             {task.description && <p style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text-secondary)" }}>{task.description}</p>}
             <div style={{ marginTop: 10, padding: "8px 10px", borderRadius: 9, background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-secondary)", fontSize: 12, lineHeight: 1.45 }}>
-              Task này được ưu tiên vì: <strong style={{ color: "var(--text-primary)" }}>{priorityReason}</strong>.
+              Priority reason: <strong style={{ color: "var(--text-primary)" }}>{priorityReason}</strong>.
             </div>
           </div>
           <button type="button" onClick={onOpenTask} title="Mở chi tiết đầy đủ" style={iconButtonStyle}>
@@ -363,51 +364,68 @@ function TaskActionPanel({
           </button>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-          <QuickActionButton label="Đánh dấu xong" tone="green" onClick={() => onTaskStatus("done")} />
-          <QuickActionButton label="Thêm sub-task" onClick={() => subTaskInputRef.current?.focus()} />
-          <QuickActionButton label="Giao người" icon={<UserPlus size={13} />} onClick={onOpenTask} />
-          <QuickActionButton label="Đổi hạn" icon={<Calendar size={13} />} onClick={() => deadlineInputRef.current?.focus()} />
-          <QuickActionButton label="Nhắn cập nhật" icon={<MessageSquare size={13} />} onClick={() => messageInputRef.current?.focus()} />
+          <QuickActionButton label="Add sub-task" onClick={() => subTaskInputRef.current?.focus()} />
+          <QuickActionButton label="Assign" icon={<UserPlus size={13} />} onClick={onOpenTask} />
+          <QuickActionButton label="Change due" icon={<Calendar size={13} />} onClick={() => deadlineInputRef.current?.focus()} />
+          <QuickActionButton label="Comment" icon={<MessageSquare size={13} />} onClick={() => messageInputRef.current?.focus()} />
         </div>
       </div>
 
       <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <PanelField icon={<Flag size={13} />} label="Trạng thái">
-          <select value={task.status} onChange={(event) => onTaskStatus(event.target.value as TaskStatus)} style={inputStyle}>
-            {STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+        <PanelField icon={<Flag size={13} />} label="Status">
+          <select
+            value={task.status}
+            onChange={(event) => {
+              const nextStatus = event.target.value as TaskStatus;
+              if (nextStatus === "done" && !canMarkTaskDone) return;
+              onTaskStatus(nextStatus);
+            }}
+            style={inputStyle}
+            title={!canMarkTaskDone ? "All sub-tasks must be approved before the task can be marked done." : undefined}
+          >
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status.value} value={status.value} disabled={status.value === "done" && !canMarkTaskDone && task.status !== "done"}>
+                {getStatusLabel(status.value)}
+              </option>
+            ))}
           </select>
+          {!canMarkTaskDone && task.status !== "done" && (
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 5 }}>
+              Done is locked until every sub-task is approved.
+            </div>
+          )}
         </PanelField>
-        <PanelField icon={<Clock size={13} />} label="Ưu tiên">
+        <PanelField icon={<Clock size={13} />} label="Priority">
           <select value={task.priority} onChange={(event) => onTaskPriority(event.target.value as TaskPriority)} style={inputStyle}>
-            {PRIORITY_OPTIONS.map((priority) => <option key={priority.value} value={priority.value}>{priority.label}</option>)}
+            {PRIORITY_OPTIONS.map((priority) => <option key={priority.value} value={priority.value}>{getPriorityLabel(priority.value)}</option>)}
           </select>
         </PanelField>
         <PanelField icon={<Calendar size={13} />} label="Deadline">
           <input ref={deadlineInputRef} type="date" value={task.deadline} onChange={(event) => onTaskDeadline(event.target.value)} style={inputStyle} />
         </PanelField>
-        <PanelField icon={<UserRound size={13} />} label="Người xử lý">
+        <PanelField icon={<UserRound size={13} />} label="Owner">
           <AvatarStack users={pics} showNames />
         </PanelField>
       </div>
 
       <div style={{ padding: "0 16px 14px", marginTop: -4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", whiteSpace: "nowrap" }}>Theo dõi</span>
-          <AvatarStack users={watchers} showNames emptyLabel="Admin tự theo dõi" />
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", whiteSpace: "nowrap" }}>Watchers</span>
+          <AvatarStack users={watchers} showNames emptyLabel="Admin watches by default" />
         </div>
       </div>
 
       <div style={{ padding: "0 16px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Sub-task</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneCount}/{task.subTasks.length} xong</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{doneCount}/{task.subTasks.length} done</div>
         </div>
         <div style={{ height: 7, borderRadius: 999, background: "var(--border)", overflow: "hidden", marginBottom: 12 }}>
           <div style={{ width: `${progress}%`, height: "100%", background: progress === 100 ? "var(--accent-green)" : "var(--accent-blue)" }} />
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "calc(100vh - 560px)", minHeight: 155, overflowY: "auto", paddingRight: 4 }}>
-          {!!openSubTasks.length && <SubTaskGroupLabel label={"C\u1ea7n l\u00e0m"} count={openSubTasks.length} />}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 155, overflowY: "visible", paddingRight: 4 }}>
+          {!!openSubTasks.length && <SubTaskGroupLabel label="Open" count={openSubTasks.length} />}
           {openSubTasks.map((subTask) => (
             <SubTaskLine
               key={subTask.id}
@@ -422,7 +440,7 @@ function TaskActionPanel({
           {!!doneSubTasks.length && (
             <>
               <button type="button" onClick={() => setShowDoneSubTasks((open) => !open)} style={doneToggleStyle}>
-                {showDoneSubTasks ? "\u1ea8n" : "\u0110\u00e3 xong"} {doneSubTasks.length} sub-task
+                {showDoneSubTasks ? "Hide" : "Done"} {doneSubTasks.length} sub-task
                 {showDoneSubTasks ? <ChevronRight size={13} style={{ transform: "rotate(90deg)" }} /> : <ChevronRight size={13} />}
               </button>
               {showDoneSubTasks && doneSubTasks.map((subTask) => (
@@ -453,11 +471,11 @@ function TaskActionPanel({
             onKeyDown={(event) => {
               if (event.key === "Enter") onAddSubTask();
             }}
-            placeholder="Thêm sub-task nhanh..."
+            placeholder="Add quick sub-task..."
             style={inputStyle}
           />
           <input type="date" value={newSubDeadline} onChange={(event) => onNewSubDeadline(event.target.value)} style={inputStyle} title="Deadline sub-task" />
-          <button type="button" onClick={onAddSubTask} disabled={!newSubContent.trim()} title="Thêm sub-task" style={{ ...iconButtonStyle, opacity: newSubContent.trim() ? 1 : 0.5 }}>
+          <button type="button" onClick={onAddSubTask} disabled={!newSubContent.trim()} title="Add sub-task" style={{ ...iconButtonStyle, opacity: newSubContent.trim() ? 1 : 0.5 }}>
             <Plus size={16} />
           </button>
         </div>
@@ -466,9 +484,9 @@ function TaskActionPanel({
           <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
               <MessageSquare size={14} />
-              Trao đổi task
+              Task comments
             </div>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{taskComments.length} tin</span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{taskComments.length} note{taskComments.length === 1 ? "" : "s"}</span>
           </div>
 
           <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, maxHeight: 170, overflowY: "auto" }}>
@@ -477,7 +495,7 @@ function TaskActionPanel({
             ))}
             {!taskComments.length && (
               <div style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "8px 0" }}>
-                Chưa có trao đổi trong task này.
+                No comments yet.
               </div>
             )}
           </div>
@@ -490,7 +508,7 @@ function TaskActionPanel({
               onKeyDown={(event) => {
                 if (event.key === "Enter") sendTaskMessage();
               }}
-              placeholder="Nhắn trong task..."
+              placeholder="Write a task comment..."
               style={inputStyle}
             />
             <button type="button" onClick={sendTaskMessage} disabled={!taskMessage.trim()} title="Gửi" style={{ ...iconButtonStyle, width: 36, height: 36, opacity: taskMessage.trim() ? 1 : 0.55 }}>
@@ -737,13 +755,13 @@ function SubTaskGroupLabel({ label, count }: { label: string; count: number }) {
 }
 
 function getEmptyStateText(scope: TaskActionScope) {
-  if (scope === "action") return "Không có task cần xử lý ngay.";
-  if (scope === "overdue") return "Không có task quá hạn.";
-  if (scope === "today") return "Không có task đến hạn hôm nay.";
-  if (scope === "review") return "Không có task cần duyệt.";
-  if (scope === "unassigned") return "Không có task chưa giao người.";
-  if (scope === "mine") return "Không có task nào của bạn trong bộ lọc này.";
-  return "Không có task trong nhóm này.";
+  if (scope === "action") return "No task needs immediate action.";
+  if (scope === "overdue") return "No overdue task.";
+  if (scope === "today") return "No task due today.";
+  if (scope === "review") return "No task waiting for review.";
+  if (scope === "unassigned") return "No unassigned task.";
+  if (scope === "mine") return "No task assigned to you in this filter.";
+  return "No task in this group.";
 }
 
 function HeaderCell({ label }: { label: string }) {
@@ -759,7 +777,7 @@ function MetaPill({ color, label }: { color: string; label: string }) {
   );
 }
 
-function AvatarStack({ users, showNames = false, compact = false, emptyLabel = "Chưa giao" }: { users: User[]; showNames?: boolean; compact?: boolean; emptyLabel?: string }) {
+function AvatarStack({ users, showNames = false, compact = false, emptyLabel = "Unassigned" }: { users: User[]; showNames?: boolean; compact?: boolean; emptyLabel?: string }) {
   if (!users.length) {
     return <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{emptyLabel}</span>;
   }
@@ -802,6 +820,25 @@ function getUsers(users: User[], ids: string[]) {
 
 function shortName(name: string) {
   return name.split(" ").slice(-2).join(" ");
+}
+
+function getStatusLabel(status: TaskStatus) {
+  if (status === "todo") return "To do";
+  if (status === "inprogress") return "In progress";
+  if (status === "review") return "Review";
+  if (status === "done") return "Done";
+  return "Cancelled";
+}
+
+function getStatusShortLabel(status: TaskStatus) {
+  if (status === "inprogress") return "Doing";
+  return getStatusLabel(status);
+}
+
+function getPriorityLabel(priority: TaskPriority) {
+  if (priority === "high") return "High";
+  if (priority === "low") return "Low";
+  return "Medium";
 }
 
 function safeDate(value?: string) {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { useAuth, useData } from "@/context/AppContext";
 import { useRouter } from "next/navigation";
-import { Brand, BrandMonthlyPerformance, KPI } from "@/lib/types";
+import { Brand, BrandMonthlyPerformance, KPI, KPILogEntry } from "@/lib/types";
 import {
   Plus,
   Edit3,
@@ -17,6 +17,7 @@ const formatVND = (n: number) =>
   new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(n);
 
 const formatNumber = (n: number, unit: string) => {
+  if (unit === "VND") return formatVND(n);
   if (unit === "VNĐ") return formatVND(n);
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -29,6 +30,9 @@ const BRAND_COLORS = [
 ];
 
 const currentMonthKey = () => new Date().toLocaleDateString("en-CA").slice(0, 7);
+
+const parseNumberInput = (value: string) => Number(value.replace(/[^\d.-]/g, "")) || 0;
+const formatPlainNumber = (value: number) => value ? value.toLocaleString("en-US") : "";
 
 const splitIntoThreePhases = (targetTotal: number) => {
   const base = Math.floor(targetTotal / 3);
@@ -46,6 +50,33 @@ const getPhasePct = (actual: number, target: number) =>
 const getMonthlyRecord = (brand: Brand, month: string) =>
   (brand.monthlyPhases ?? []).find((item) => item.month === month);
 
+const getMonthRange = (month: string) => {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const endDate = new Date(year, monthIndex, 0).getDate();
+  return { start, end: `${month}-${String(endDate).padStart(2, "0")}`, endDate };
+};
+
+const taskTouchesMonth = (task: { startDate?: string; deadline?: string; completedAt?: string; createdAt?: string }, month: string) => {
+  const { start, end } = getMonthRange(month);
+  const taskStart = task.startDate || task.createdAt?.slice(0, 10) || task.deadline || start;
+  const taskEnd = task.completedAt?.slice(0, 10) || task.deadline || taskStart;
+  return taskStart <= end && taskEnd >= start;
+};
+
+const getPhaseRange = (month: string, phase: 1 | 2 | 3) => {
+  const { endDate } = getMonthRange(month);
+  const startDay = phase === 1 ? 1 : phase === 2 ? 11 : 21;
+  const endDay = phase === 1 ? 10 : phase === 2 ? 20 : endDate;
+  return {
+    start: `${month}-${String(startDay).padStart(2, "0")}`,
+    end: `${month}-${String(endDay).padStart(2, "0")}`,
+  };
+};
+
+const getKpiPhaseTarget = (target: number, phase: 1 | 2 | 3) =>
+  splitIntoThreePhases(target).find((item) => item.phase === phase)?.target ?? 0;
+
 export default function BrandsPage() {
   const { currentUser } = useAuth();
   const { state, addBrand, updateBrand, deleteBrand, addKPI, updateKPI, deleteKPI } = useData();
@@ -60,6 +91,8 @@ export default function BrandsPage() {
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [editingKpi, setEditingKpi] = useState<KPI | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
+  const [expandedKpiBrandIds, setExpandedKpiBrandIds] = useState<string[]>([]);
 
   // Brand form
   const [fName, setFName] = useState("");
@@ -167,6 +200,10 @@ export default function BrandsPage() {
     setShowPhaseModal(false);
   };
 
+  const toggleKpiRows = (brandId: string) => {
+    setExpandedKpiBrandIds((ids) => ids.includes(brandId) ? ids.filter((id) => id !== brandId) : [...ids, brandId]);
+  };
+
   if (currentUser?.role !== "admin") return null;
 
   const inp: React.CSSProperties = {
@@ -187,16 +224,117 @@ export default function BrandsPage() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>Brands & KPIs</h1>
-            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{state.brands.length} thương hiệu đang quản lý</p>
+            <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>Brand Management</h1>
+            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{state.brands.length} active brands</p>
           </div>
           <button onClick={openCreateBrand} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, background: "linear-gradient(135deg, #3b82f6, #8b5cf6)", border: "none", color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(59,130,246,0.35)" }}>
-            <Plus size={15} /> Thêm Brand
+            <Plus size={15} /> Add Brand
           </button>
         </div>
 
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow)" }}>
+          <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 850, color: "var(--text-primary)" }}>Monthly brand table</div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>One row per brand. Compare budget, target, actual, phases, tasks, and KPI count quickly.</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase" }}>Month</span>
+              <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} style={{ ...inp, width: 150 }} />
+            </div>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1120 }}>
+              <thead>
+                <tr style={{ background: "var(--bg-secondary)" }}>
+                  {["Brand", "Budget", "Target", "Actual", "Performance", "Phase 1", "Phase 2", "Phase 3", "Tasks this month", "KPIs", ""].map((label) => (
+                    <th key={label} style={brandThStyle}><div style={resizableHeaderStyle}>{label}</div></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {state.brands.map((brand) => {
+                  const brandTasks = state.tasks.filter((task) => task.brandId === brand.id && taskTouchesMonth(task, selectedMonth));
+                  const doneTasks = brandTasks.filter((task) => task.status === "done").length;
+                  const taskPct = brandTasks.length > 0 ? Math.round((doneTasks / brandTasks.length) * 100) : 0;
+                  const monthly = getMonthlyRecord(brand, selectedMonth);
+                  const monthlyPct = getPhasePct(monthly?.actualTotal ?? 0, monthly?.targetTotal ?? 0);
+                  const phases = monthly?.phases ?? splitIntoThreePhases(0);
+
+                  return (
+                    <Fragment key={brand.id}>
+                    <tr key={brand.id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <td style={brandTdStyle}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 999, background: brand.color, flexShrink: 0 }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 850, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{brand.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{brand.description || "No description"}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={brandTdStyle}>{formatVND(brand.budget)}</td>
+                      <td style={brandTdStyle}>{formatNumber(monthly?.targetTotal ?? 0, "VND")}</td>
+                      <td style={brandTdStyle}>{formatNumber(monthly?.actualTotal ?? 0, "VND")}</td>
+                      <td style={brandTdStyle}>
+                        <ProgressCell percent={monthlyPct} color={brand.color} />
+                      </td>
+                      {phases.map((phase) => {
+                        const pct = getPhasePct(phase.actual, phase.target);
+                        return (
+                          <td key={phase.phase} style={brandTdStyle}>
+                            <div style={{ fontSize: 12, fontWeight: 850, color: pct >= 100 ? "var(--accent-green)" : pct >= 70 ? "#f59e0b" : "var(--text-primary)" }}>{pct}%</div>
+                            <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{formatNumber(phase.actual, "VND")} / {formatNumber(phase.target, "VND")}</div>
+                          </td>
+                        );
+                      })}
+                      <td style={brandTdStyle}>
+                        <div style={{ fontSize: 12, fontWeight: 850, color: "var(--text-primary)" }}>{doneTasks}/{brandTasks.length}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{taskPct}% done</div>
+                      </td>
+                      <td style={brandTdStyle}>
+                        <button onClick={() => toggleKpiRows(brand.id)} style={{ ...tableActionStyle, minWidth: 72 }}>
+                          {expandedKpiBrandIds.includes(brand.id) ? "Hide" : "Show"} {brand.kpis.length}
+                        </button>
+                      </td>
+                      <td style={{ ...brandTdStyle, textAlign: "right" }}>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                          <button onClick={() => openPhaseEditor(brand, selectedMonth)} style={tableActionStyle}>Phase</button>
+                          <button onClick={() => openAddKpi(brand.id)} style={tableActionStyle}>Add KPI</button>
+                          <button onClick={() => openEditBrand(brand)} style={{ ...tableIconStyle, color: brand.color }} title="Edit brand"><Edit3 size={13} /></button>
+                          <button onClick={() => { if (confirm(`Delete brand "${brand.name}"?`)) deleteBrand(brand.id); }} style={{ ...tableIconStyle, color: "#f87171" }} title="Delete brand"><Trash2 size={13} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedKpiBrandIds.includes(brand.id) && (
+                      <tr>
+                        <td colSpan={11} style={{ padding: 0, background: "var(--bg-secondary)", borderTop: "1px solid var(--border)" }}>
+                          <KpiPhaseTable
+                            brand={brand}
+                            month={selectedMonth}
+                            logs={state.kpiLogs.filter((log) => log.brandId === brand.id && log.date.startsWith(selectedMonth))}
+                            onEdit={(kpi) => openEditKpi(brand.id, kpi)}
+                            onDelete={(kpi) => { if (confirm(`Delete KPI "${kpi.name}"?`)) deleteKPI(brand.id, kpi.id); }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
+                  );
+                })}
+                {!state.brands.length && (
+                  <tr>
+                    <td colSpan={11} style={{ padding: 28, textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No brands yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Brand cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: 20 }}>
+        <div style={{ display: "none", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: 20 }}>
           {state.brands.map((brand) => {
             const brandTasks = state.tasks.filter((t) => t.brandId === brand.id);
             const doneTasks = brandTasks.filter((t) => t.status === "done").length;
@@ -387,7 +525,7 @@ export default function BrandsPage() {
                 </div>
                 <div>
                   <label style={lbl}>Ngân sách nhân sự (VNĐ)</label>
-                  <input type="number" value={fBudget} onChange={(e) => setFBudget(+e.target.value)} style={inp} />
+                  <input inputMode="numeric" value={formatPlainNumber(fBudget)} onChange={(e) => setFBudget(parseNumberInput(e.target.value))} style={inp} />
                 </div>
                 <div>
                   <label style={lbl}>Màu sắc Brand</label>
@@ -428,11 +566,11 @@ export default function BrandsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={lbl}>Mục tiêu</label>
-                    <input type="number" value={fKpiTarget} onChange={(e) => setFKpiTarget(+e.target.value)} style={inp} />
+                    <input inputMode="numeric" value={formatPlainNumber(fKpiTarget)} onChange={(e) => setFKpiTarget(parseNumberInput(e.target.value))} style={inp} />
                   </div>
                   <div>
                     <label style={lbl}>Thực tế</label>
-                    <input type="number" value={fKpiCurrent} onChange={(e) => setFKpiCurrent(+e.target.value)} style={inp} />
+                    <input inputMode="numeric" value={formatPlainNumber(fKpiCurrent)} onChange={(e) => setFKpiCurrent(parseNumberInput(e.target.value))} style={inp} />
                   </div>
                 </div>
                 <div>
@@ -475,7 +613,7 @@ export default function BrandsPage() {
                   </div>
                   <div>
                     <label style={lbl}>Target tổng tháng</label>
-                    <input type="number" value={fTargetTotal} onChange={(e) => updateTargetTotal(+e.target.value)} style={inp} />
+                    <input inputMode="numeric" value={formatPlainNumber(fTargetTotal)} onChange={(e) => updateTargetTotal(parseNumberInput(e.target.value))} style={inp} />
                   </div>
                 </div>
 
@@ -490,16 +628,16 @@ export default function BrandsPage() {
                         </div>
                         <label style={lbl}>Target</label>
                         <input
-                          type="number"
-                          value={fPhaseTargets[index] ?? 0}
-                          onChange={(e) => setFPhaseTargets((values) => values.map((value, i) => i === index ? +e.target.value : value))}
+                          inputMode="numeric"
+                          value={formatPlainNumber(fPhaseTargets[index] ?? 0)}
+                          onChange={(e) => setFPhaseTargets((values) => values.map((value, i) => i === index ? parseNumberInput(e.target.value) : value))}
                           style={{ ...inp, marginBottom: 10 }}
                         />
                         <label style={lbl}>Thực đạt</label>
                         <input
-                          type="number"
-                          value={fPhaseActuals[index] ?? 0}
-                          onChange={(e) => setFPhaseActuals((values) => values.map((value, i) => i === index ? +e.target.value : value))}
+                          inputMode="numeric"
+                          value={formatPlainNumber(fPhaseActuals[index] ?? 0)}
+                          onChange={(e) => setFPhaseActuals((values) => values.map((value, i) => i === index ? parseNumberInput(e.target.value) : value))}
                           style={inp}
                         />
                       </div>
@@ -538,4 +676,149 @@ const lbl: React.CSSProperties = {
   fontWeight: 600,
   color: "var(--text-secondary)",
   marginBottom: 5,
+};
+
+function KpiPhaseTable({
+  brand,
+  month,
+  logs,
+  onEdit,
+  onDelete,
+}: {
+  brand: Brand;
+  month: string;
+  logs: KPILogEntry[];
+  onEdit: (kpi: KPI) => void;
+  onDelete: (kpi: KPI) => void;
+}) {
+  if (!brand.kpis.length) {
+    return (
+      <div style={{ padding: 18, color: "var(--text-muted)", fontSize: 13 }}>
+        No KPI configured for this brand.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "12px 18px 18px" }}>
+      <div style={{ fontSize: 12, fontWeight: 850, color: "var(--text-primary)", marginBottom: 10 }}>
+        KPI phase tracking - {month}
+      </div>
+      <table style={{ width: "100%", borderCollapse: "collapse", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+        <thead>
+          <tr style={{ background: "var(--bg-secondary)" }}>
+            {["KPI", "Target", "Actual", "Rate", "Phase 1", "Phase 2", "Phase 3", ""].map((label) => (
+              <th key={label} style={brandThStyle}><div style={resizableHeaderStyle}>{label}</div></th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {brand.kpis.map((kpi) => {
+            const kpiLogs = logs.filter((log) => log.kpiId === kpi.id);
+            const loggedActual = kpiLogs.reduce((sum, log) => sum + log.value, 0);
+            const actual = kpiLogs.length ? loggedActual : kpi.current;
+            const rate = getPhasePct(actual, kpi.target);
+
+            return (
+              <tr key={kpi.id} style={{ borderTop: "1px solid var(--border)" }}>
+                <td style={brandTdStyle}>
+                  <div style={{ fontSize: 12, fontWeight: 850, color: "var(--text-primary)" }}>{kpi.name}</div>
+                  <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>{kpi.unit}</div>
+                </td>
+                <td style={brandTdStyle}>{formatNumber(kpi.target, kpi.unit)}</td>
+                <td style={brandTdStyle}>{formatNumber(actual, kpi.unit)}</td>
+                <td style={brandTdStyle}><ProgressCell percent={rate} color={brand.color} /></td>
+                {([1, 2, 3] as const).map((phase) => {
+                  const range = getPhaseRange(month, phase);
+                  const phaseActual = kpiLogs.length
+                    ? kpiLogs.filter((log) => log.date >= range.start && log.date <= range.end).reduce((sum, log) => sum + log.value, 0)
+                    : getKpiPhaseTarget(actual, phase);
+                  const phaseTarget = getKpiPhaseTarget(kpi.target, phase);
+                  const pct = getPhasePct(phaseActual, phaseTarget);
+                  return (
+                    <td key={phase} style={brandTdStyle}>
+                      <div style={{ fontSize: 12, fontWeight: 850, color: pct >= 100 ? "var(--accent-green)" : pct >= 70 ? "#f59e0b" : "var(--text-primary)" }}>{pct}%</div>
+                      <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 3 }}>
+                        {formatNumber(phaseActual, kpi.unit)} / {formatNumber(phaseTarget, kpi.unit)}
+                      </div>
+                    </td>
+                  );
+                })}
+                <td style={{ ...brandTdStyle, textAlign: "right" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                    <button onClick={() => onEdit(kpi)} style={tableIconStyle} title="Edit KPI"><Edit3 size={13} /></button>
+                    <button onClick={() => onDelete(kpi)} style={{ ...tableIconStyle, color: "#f87171" }} title="Delete KPI"><Trash2 size={13} /></button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ProgressCell({ percent, color }: { percent: number; color: string }) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+  const tone = percent >= 100 ? "var(--accent-green)" : percent >= 70 ? "#f59e0b" : color;
+
+  return (
+    <div style={{ minWidth: 92 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
+        <span style={{ fontSize: 12, fontWeight: 850, color: tone }}>{percent}%</span>
+      </div>
+      <div style={{ height: 5, borderRadius: 999, overflow: "hidden", background: "var(--border)" }}>
+        <div style={{ width: `${safePercent}%`, height: "100%", background: tone }} />
+      </div>
+    </div>
+  );
+}
+
+const brandThStyle: React.CSSProperties = {
+  padding: 0,
+  color: "var(--text-muted)",
+  fontSize: 10,
+  fontWeight: 850,
+  textAlign: "left",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  whiteSpace: "nowrap",
+};
+
+const resizableHeaderStyle: React.CSSProperties = {
+  minWidth: 72,
+  padding: "10px 12px",
+  resize: "horizontal",
+  overflow: "auto",
+};
+
+const brandTdStyle: React.CSSProperties = {
+  padding: "12px",
+  color: "var(--text-secondary)",
+  fontSize: 12,
+  verticalAlign: "middle",
+};
+
+const tableActionStyle: React.CSSProperties = {
+  border: "1px solid var(--border)",
+  background: "var(--bg-secondary)",
+  color: "var(--text-secondary)",
+  borderRadius: 8,
+  padding: "6px 9px",
+  fontSize: 11,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const tableIconStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  border: "1px solid var(--border)",
+  background: "var(--bg-secondary)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
 };
