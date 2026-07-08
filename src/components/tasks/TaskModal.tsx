@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useAuth, useData } from "@/context/AppContext";
 import { Task, SubTask, TaskStatus, TaskPriority, SubTaskStatus, User } from "@/lib/types";
-import { canAccessBrand, getVisibleBrands } from "@/lib/permissions";
+import { canAccessBrand, canManageBrandTasks, getVisibleBrands } from "@/lib/permissions";
 import { format, parseISO, isPast } from "date-fns";
 import {
   X, Edit3, Save, Trash2, Plus, CheckSquare, Square,
@@ -41,6 +41,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
 
   // Always use latest task state from context
   const task = state.tasks.find((t) => t.id === initialTask.id) ?? initialTask;
+  const canManageTask = canManageBrandTasks(currentUser) && canAccessBrand(currentUser, task.brandId);
   const taskBrandId = task.brandId;
   const visibleBrands = useMemo(() => getVisibleBrands(state.brands, currentUser), [state.brands, currentUser]);
   const visibleProjects = useMemo(
@@ -393,7 +394,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            {isAdmin && !editingTask && (
+            {canManageTask && !editingTask && (
               <button onClick={() => setEditingTask(true)} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.25)", cursor: "pointer", color: "var(--accent-blue)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Edit3 size={14} />
               </button>
@@ -656,7 +657,7 @@ export default function TaskModal({ task: initialTask, onClose }: Props) {
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>Trạng thái</div>
-                              <select value={estStatus} onChange={(e) => setEstStatus(e.target.value as any)} style={{ ...inp, cursor: "pointer" }}>
+                              <select value={estStatus} onChange={(e) => setEstStatus(e.target.value as SubTaskStatus)} style={{ ...inp, cursor: "pointer" }}>
                                 <option value="pending">Chưa xong</option>
                                 <option value="reviewing">Chờ duyệt</option>
                                 <option value="done">Hoàn thành</option>

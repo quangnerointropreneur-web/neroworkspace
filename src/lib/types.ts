@@ -2,7 +2,7 @@
 // TYPE DEFINITIONS — Nero Ops System (v2)
 // =============================================================================
 
-export type UserRole = "admin" | "assistant" | "employee";
+export type UserRole = "admin" | "assistant" | "manager" | "employee";
 export type TaskStatus = "todo" | "inprogress" | "review" | "done" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high";
 export type SubTaskStatus = "pending" | "reviewing" | "done";

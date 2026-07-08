@@ -9,7 +9,7 @@ import TaskBoardView from "@/components/tasks/TaskBoardView";
 import TaskCalendarView from "@/components/tasks/TaskCalendarView";
 import TaskOperationsView from "@/components/tasks/TaskOperationsView";
 import TaskModal from "@/components/tasks/TaskModal";
-import { canAccessBrand, getVisibleBrands } from "@/lib/permissions";
+import { canAccessBrand, canManageBrandTasks, getVisibleBrands } from "@/lib/permissions";
 import { CheckSquare, List, Columns, Calendar, Plus, X, Filter, History, Search } from "lucide-react";
 
 const DEFAULT_FILTERS: TaskFilters = {
@@ -37,6 +37,7 @@ function TasksPageContent() {
   const { state, addTask, updateTaskStatus } = useData();
   const searchParams = useSearchParams();
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "assistant";
+  const canManageScopedTasks = canManageBrandTasks(currentUser);
 
   const [view, setView] = useState<TaskView>("work");
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
@@ -144,7 +145,7 @@ function TasksPageContent() {
   const filteredTasks = useMemo(() => {
     const uid = currentUser?.id ?? "";
     let tasks = state.tasks.filter((t) => canAccessBrand(currentUser, t.brandId));
-    tasks = isAdmin
+    tasks = canManageScopedTasks
       ? state.tasks
       : state.tasks.filter((t) => t.picIds?.includes(uid) || t.picId === uid || t.watcherIds?.includes(uid));
     tasks = tasks.filter((t) => canAccessBrand(currentUser, t.brandId));
@@ -174,7 +175,7 @@ function TasksPageContent() {
       if (!b.deadline) return -1;
       return a.deadline.localeCompare(b.deadline);
     });
-  }, [state.tasks, filters, currentUser, isAdmin]);
+  }, [state.tasks, filters, currentUser, canManageScopedTasks]);
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => {
     if (key === "showHistory") return value === true;
@@ -364,7 +365,7 @@ function TasksPageContent() {
                 ))}
               </select>
 
-              {isAdmin && (
+              {canManageScopedTasks && (
                 <select value={filters.picId} onChange={(e) => setFilter("picId", e.target.value)} style={{ ...inputStyle, cursor: "pointer", minWidth: 122 }}>
                   <option value="">Owner</option>
                   {state.users.map((u) => (

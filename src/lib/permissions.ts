@@ -4,7 +4,7 @@ export const getAssignedBrandIds = (user?: User | null) =>
   user?.brandIds?.filter(Boolean) ?? [];
 
 export const canAccessAllBrands = (user?: User | null) =>
-  !user || user.role === "admin" || getAssignedBrandIds(user).length === 0;
+  !user || user.role === "admin" || (user.role !== "manager" && getAssignedBrandIds(user).length === 0);
 
 export const canAccessBrand = (user: User | null | undefined, brandId?: string | null) => {
   if (!brandId) return true;
@@ -14,3 +14,6 @@ export const canAccessBrand = (user: User | null | undefined, brandId?: string |
 
 export const getVisibleBrands = (brands: Brand[], user?: User | null) =>
   canAccessAllBrands(user) ? brands : brands.filter((brand) => canAccessBrand(user, brand.id));
+
+export const canManageBrandTasks = (user?: User | null) =>
+  user?.role === "admin" || user?.role === "assistant" || user?.role === "manager";

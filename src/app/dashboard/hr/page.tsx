@@ -44,7 +44,7 @@ export default function HRPage() {
   const [fPassword, setFPassword] = useState("");
   const [fFullName, setFFullName] = useState("");
   const [fDept, setFDept] = useState("");
-  const [fRole, setFRole] = useState<"admin" | "assistant" | "employee">("employee");
+  const [fRole, setFRole] = useState<User["role"]>("employee");
   const [fBaseSalary, setFBaseSalary] = useState(0);
   const [fBonus, setFBonus] = useState(0);
   const [fPenalty, setFPenalty] = useState(0);
@@ -77,6 +77,7 @@ export default function HRPage() {
 
   const handleSave = () => {
     if (!fFullName.trim() || !fUsername.trim()) return;
+    if (fRole === "manager" && fBrandIds.length === 0) return;
     const data = {
       username: fUsername,
       password: fPassword || "pass123",
@@ -210,7 +211,7 @@ export default function HRPage() {
           {[
             { label: "Tổng nhân sự", value: state.users.length, color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
             { label: "Tổng lương tháng", value: formatVND(state.users.reduce((s, u) => s + calcIncome(u), 0)), color: "#10b981", bg: "rgba(16,185,129,0.1)" },
-            { label: "Nhân viên active", value: state.users.filter((u) => u.role === "employee").length, color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
+            { label: "Manager", value: state.users.filter((u) => u.role === "manager").length, color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
           ].map((c) => (
             <div key={c.label} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 20px" }}>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8 }}>{c.label}</div>
@@ -255,13 +256,13 @@ export default function HRPage() {
                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: u.role === "admin" ? "linear-gradient(135deg, #3b82f6, #8b5cf6)" : u.role === "assistant" ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg, #10b981, #059669)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "white", flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: getRoleGradient(u.role), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "white", flexShrink: 0 }}>
                       {u.fullName.split(" ").slice(-1)[0].charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{u.fullName}</div>
                       <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                        @{u.username} · {u.role === "admin" ? "Quản trị" : u.role === "assistant" ? "Trợ lý" : "Nhân viên"}
+                        @{u.username} · {getRoleLabel(u.role)}
                       </div>
                       {u.role !== "admin" && (
                         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
@@ -402,9 +403,10 @@ export default function HRPage() {
                 <div>
                   <label style={lbl}>Chức danh</label>
                   <select value={fRole} onChange={(e) => setFRole(e.target.value as User["role"])} style={{ ...inp, cursor: "pointer" }}>
-                    <option value="employee">Nhân viên</option>
-                    <option value="assistant">Trợ lý</option>
-                    <option value="admin">Quản trị viên</option>
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="assistant">Assistant</option>
+                    <option value="admin">Admin</option>
                   </select>
                 </div>
               </div>
@@ -412,7 +414,9 @@ export default function HRPage() {
                 <div>
                   <label style={lbl}>Brand duoc xem</label>
                   <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>
-                    Chon 1 hoac nhieu brand. De trong neu tai khoan nay duoc xem tat ca brand.
+                    {fRole === "manager"
+                      ? "Manager will manage all tasks inside selected brands. Select at least one brand."
+                      : "Select one or more brands. Leave empty if this account can see all brands."}
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {state.brands.map((brand) => {
@@ -509,3 +513,17 @@ const subInp: React.CSSProperties = {
   ...inp,
   width: 80,
 };
+
+function getRoleLabel(role: User["role"]) {
+  if (role === "admin") return "Admin";
+  if (role === "assistant") return "Assistant";
+  if (role === "manager") return "Manager";
+  return "Employee";
+}
+
+function getRoleGradient(role: User["role"]) {
+  if (role === "admin") return "linear-gradient(135deg, #3b82f6, #8b5cf6)";
+  if (role === "assistant") return "linear-gradient(135deg,#6366f1,#8b5cf6)";
+  if (role === "manager") return "linear-gradient(135deg,#f59e0b,#d97706)";
+  return "linear-gradient(135deg, #10b981, #059669)";
+}
