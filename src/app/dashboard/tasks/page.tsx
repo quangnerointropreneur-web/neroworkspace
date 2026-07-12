@@ -90,9 +90,9 @@ function TasksPageContent() {
     [state.projects, currentUser]
   );
 
-  const effectiveNewBrandId = canAccessBrand(currentUser, newBrandId)
+  const effectiveNewBrandId = newBrandId && canAccessBrand(currentUser, newBrandId)
     ? newBrandId
-    : visibleBrands[0]?.id ?? "";
+    : "";
 
   const brandProjects = useMemo(() => {
     return visibleProjects.filter(p => p.brandId === effectiveNewBrandId && p.status !== "archived");
@@ -132,7 +132,7 @@ function TasksPageContent() {
   const resetAddForm = () => {
     setNewTitle("");
     setNewDesc("");
-    setNewBrandId(visibleBrands[0]?.id ?? "");
+    setNewBrandId("");
     setNewPicIds(defaultAssigneeIds);
     setNewWatcherIds([]);
     setNewStartDate(new Date().toISOString().split("T")[0]);
@@ -524,6 +524,7 @@ function TasksPageContent() {
                 <div style={{ gridColumn: isMobile ? "span 1" : "span 2" }}>
                   <label style={formLabel}>Brand *</label>
                   <select value={effectiveNewBrandId} onChange={(e) => setNewBrandId(e.target.value)} style={{ ...inputStyle, width: "100%", cursor: "pointer" }}>
+                    <option value="" disabled>Chọn brand</option>
                     {visibleBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
