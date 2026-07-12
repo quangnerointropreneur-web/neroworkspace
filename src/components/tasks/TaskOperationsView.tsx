@@ -114,8 +114,10 @@ export default function TaskOperationsView({ tasks, brands, users, projects, onO
       return;
     }
 
-    if (isAdmin || subTask.status === "reviewing") {
-      approveSubTask(task.id, subTask.id, "Đã xử lý nhanh");
+    if (subTask.status === "reviewing") {
+      if (isAdmin) {
+        approveSubTask(task.id, subTask.id, "Đã xử lý nhanh");
+      }
       return;
     }
 
